@@ -1,0 +1,78 @@
+.confirm-page {
+  display: flex;
+  justify-content: center;
+  padding-top: 32px;
+}
+
+.confirm-card {
+  max-width: 480px;
+  width: 100%;
+  padding: 40px 32px;
+  text-align: center;
+}
+
+.confirm-icon {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  background: #f0fdf4;
+  color: var(--success);
+  font-size: 2rem;
+  line-height: 72px;
+  font-weight: 800;
+}
+
+.confirm-card h1 {
+  margin: 0 0 8px;
+}
+
+.order-code {
+  color: var(--text-muted);
+  margin: 0 0 20px;
+}
+
+.order-info {
+  text-align: left;
+  background: var(--bg-surface-alt);
+  padding: 16px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.concert-name {
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+
+.order-info .total {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--primary);
+  margin: 12px 0 0;
+}
+
+.qr-box {
+  border: 2px dashed var(--divider);
+  border-radius: 12px;
+  padding: 32px;
+  margin-bottom: 24px;
+}
+
+.qr-box span {
+  display: block;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.qr-box small {
+  display: block;
+  margin-top: 8px;
+  color: var(--text-muted);
+}
+
+.confirm-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}

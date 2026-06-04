@@ -1,0 +1,150 @@
+.seat-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 24px;
+  align-items: start;
+}
+
+.zone-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.zone-tab {
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--divider);
+  background: var(--bg-surface);
+  cursor: pointer;
+  text-align: left;
+}
+
+.zone-tab.active {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+.zone-tab span {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.stage-label {
+  display: inline-block;
+  background: var(--primary-dark);
+  color: #fff;
+  padding: 8px 24px;
+  border-radius: 8px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.map-wrap {
+  overflow: auto;
+  padding: 16px;
+  background: var(--bg-surface);
+  border-radius: 16px;
+  border: 1px solid var(--divider);
+}
+
+.seat-map {
+  position: relative;
+  margin: 0 auto;
+}
+
+.seat {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.seat--available {
+  background: var(--success);
+}
+
+.seat--selected {
+  background: var(--primary);
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--primary);
+}
+
+.seat--sold {
+  background: #d1d5db;
+  cursor: not-allowed;
+}
+
+.seat--reserved {
+  background: var(--warning);
+  cursor: not-allowed;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.legend .dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.dot.available {
+  background: var(--success);
+}
+
+.dot.selected {
+  background: var(--primary);
+}
+
+.dot.reserved {
+  background: var(--warning);
+}
+
+.dot.sold {
+  background: #d1d5db;
+}
+
+.seat-sidebar {
+  padding: 20px;
+  position: sticky;
+  top: 80px;
+}
+
+.seat-sidebar h3 {
+  margin: 0 0 12px;
+}
+
+.summary-total {
+  margin: 0 0 12px;
+}
+
+.seat-list {
+  margin: 0 0 20px;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 900px) {
+  .seat-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .seat-sidebar {
+    position: static;
+  }
+}
