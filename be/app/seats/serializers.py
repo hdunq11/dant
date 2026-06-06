@@ -1,12 +1,20 @@
 from rest_framework import serializers
 from .models import SeatZone, Seat, ConcertSeat
+from app.venues.models import Venue
 from app.venues.serializers import VenueSerializer
 
 
 class SeatZoneSerializer(serializers.ModelSerializer):
+    venue_id = serializers.PrimaryKeyRelatedField(
+        queryset=Venue.objects.all(),
+        source='venue',
+        write_only=True,
+        required=False,
+    )
+
     class Meta:
         model = SeatZone
-        fields = ('id', 'name', 'price', 'color', 'created_at', 'updated_at')
+        fields = ('id', 'name', 'price', 'color', 'venue_id', 'created_at', 'updated_at')
         read_only_fields = ('id', 'created_at', 'updated_at')
 
 
@@ -15,7 +23,7 @@ class SeatSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Seat
-        fields = ('id', 'zone', 'row_label', 'seat_number', 'pos_x', 'pos_y', 'created_at')
+        fields = ('id', 'zone', 'row_label', 'seat_number', 'pos_x', 'pos_y', 'pos_z', 'created_at')
         read_only_fields = ('id', 'created_at')
 
 
@@ -43,6 +51,7 @@ class SeatMapSerializer(serializers.Serializer):
                 'status': seat.status,
                 'pos_x': seat.pos_x,
                 'pos_y': seat.pos_y,
+                'pos_z': seat.pos_z,
             }
             for seat in obj.get('seats', [])
         ]

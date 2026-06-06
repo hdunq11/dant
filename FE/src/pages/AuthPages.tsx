@@ -20,7 +20,7 @@ export function LoginPage() {
     setError(null);
     try {
       await login(email, password);
-      navigate(from, { replace: true });
+      navigate(from.startsWith('/admin') ? from : from === '/login' ? '/' : from, { replace: true });
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {

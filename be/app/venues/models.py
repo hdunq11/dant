@@ -8,6 +8,12 @@ class Venue(models.Model):
     city = models.CharField(max_length=100)
     address = models.TextField()
     capacity = models.IntegerField()
+    model_glb_path = models.CharField(
+        max_length=500,
+        blank=True,
+        default='',
+        help_text='Đường dẫn file GLB venue, vd: models/venue.glb',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -2,6 +2,7 @@ export interface Artist {
   id?: string;
   name?: string;
   genre?: string;
+  description?: string;
   image_url?: string;
 }
 
@@ -15,6 +16,7 @@ export interface Venue {
   city?: string;
   address?: string;
   capacity?: number;
+  model_glb_path?: string;
 }
 
 export interface Concert {
@@ -34,6 +36,7 @@ export interface User {
   full_name?: string;
   avatar_url?: string;
   role?: string;
+  is_staff?: boolean;
 }
 
 export interface LoginResponse {
@@ -56,6 +59,7 @@ export interface SeatMapSeat {
   status?: string;
   pos_x?: number;
   pos_y?: number;
+  pos_z?: number;
 }
 
 export interface SeatMapZone {

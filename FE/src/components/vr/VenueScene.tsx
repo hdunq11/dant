@@ -1,0 +1,137 @@
+import { Component, Suspense, useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { OrbitControls, Text } from '@react-three/drei';
+import { useFrame, useThree } from '@react-three/fiber';
+import { Vector3 } from 'three';
+import type { Seat3D, VrFraming } from '../../utils/seatMap3D';
+import { STAGE_CENTER, seatViewPosition } from '../../utils/seatMap3D';
+import { SeatInstances } from './SeatInstances';
+import { VenueModel } from './VenueModel';
+
+interface VenueSceneProps {
+  seats: Seat3D[];
+  selectedIds: Set<string>;
+  previewSeatId: string | null;
+  viewFromSeat: boolean;
+  modelPath?: string | null;
+  framing: VrFraming;
+  onSelectSeat: (seat: Seat3D) => void;
+  onPreviewSeat: (seat: Seat3D) => void;
+}
+
+function SceneCamera({ framing }: { framing: VrFraming }) {
+  const { camera } = useThree();
+  const initialized = useRef(false);
+
+  useEffect(() => {
+    if (initialized.current) return;
+    camera.position.set(...framing.position);
+    initialized.current = true;
+  }, [camera, framing]);
+
+  return null;
+}
+
+class VenueModelErrorBoundary extends Component<
+  { children: ReactNode; fallback: ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) return this.props.fallback;
+    return this.props.children;
+  }
+}
+
+function FallbackStage() {
+  return (
+    <group position={STAGE_CENTER}>
+      <mesh receiveShadow>
+        <boxGeometry args={[8, 0.5, 4]} />
+        <meshStandardMaterial color="#312e81" emissive="#4338ca" emissiveIntensity={0.35} />
+      </mesh>
+      <Text position={[0, 1.2, 0]} fontSize={0.6} color="#e0e7ff" anchorX="center" anchorY="middle">
+        SÂN KHẤU
+      </Text>
+    </group>
+  );
+}
+
+function SeatViewCamera({
+  seat,
+  active,
+}: {
+  seat: Seat3D | null;
+  active: boolean;
+}) {
+  const { camera } = useThree();
+  const target = useRef(new Vector3());
+  const lookAt = useRef(new Vector3(...STAGE_CENTER));
+
+  useEffect(() => {
+    if (seat && active) {
+      const [x, y, z] = seatViewPosition(seat);
+      target.current.set(x, y, z);
+    }
+  }, [seat, active]);
+
+  useFrame((_, delta) => {
+    if (!seat || !active) return;
+    camera.position.lerp(target.current, Math.min(1, delta * 4));
+    camera.lookAt(lookAt.current);
+  });
+
+  return null;
+}
+
+export function VenueScene({
+  seats,
+  selectedIds,
+  previewSeatId,
+  viewFromSeat,
+  modelPath,
+  framing,
+  onSelectSeat,
+  onPreviewSeat,
+}: VenueSceneProps) {
+  const previewSeat = seats.find((s) => s.seatId === previewSeatId) ?? null;
+  const orbitTarget = useMemo(() => new Vector3(...framing.target), [framing.target]);
+
+  return (
+    <>
+      <SceneCamera framing={framing} />
+      <ambientLight intensity={0.65} />
+      <directionalLight position={[5, 12, 8]} intensity={1.2} castShadow />
+      <directionalLight position={[-4, 6, -2]} intensity={0.4} color="#c4b5fd" />
+
+      <VenueModelErrorBoundary fallback={<FallbackStage />}>
+        <Suspense fallback={null}>
+          {modelPath ? <VenueModel path={modelPath} /> : <FallbackStage />}
+        </Suspense>
+      </VenueModelErrorBoundary>
+
+      <SeatInstances
+        seats={seats}
+        selectedIds={selectedIds}
+        previewSeatId={previewSeatId}
+        onSelect={onSelectSeat}
+        onPreview={onPreviewSeat}
+      />
+
+      <SeatViewCamera seat={previewSeat} active={viewFromSeat} />
+
+      <OrbitControls
+        enabled={!viewFromSeat}
+        target={orbitTarget}
+        maxPolarAngle={Math.PI / 2.1}
+        minDistance={2}
+        maxDistance={framing.maxDistance}
+        enablePan
+      />
+    </>
+  );
+}

@@ -7,7 +7,8 @@ interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  isAdmin: boolean;
+  login: (email: string, password: string) => Promise<User>;
   register: (email: string, password: string, fullName: string) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
@@ -42,6 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const res = await concertApi.login(email.trim(), password);
     setStoredTokens(res.data.access, res.data.refresh);
     setUser(res.data.user);
+    return res.data.user;
   }, []);
 
   const register = useCallback(
@@ -62,17 +64,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
+  const isAdmin = !!user && (user.role === 'admin' || user.is_staff === true);
+
   const value = useMemo(
     () => ({
       user,
       isLoading,
       isAuthenticated: !!user,
+      isAdmin,
       login,
       register,
       logout,
       refreshUser,
     }),
-    [user, isLoading, login, register, logout, refreshUser]
+    [user, isLoading, isAdmin, login, register, logout, refreshUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -7,3 +7,5 @@ python-decouple==3.8
 PyJWT==2.8.0
 drf-spectacular
 django-filter
+pygltflib
+numpy

@@ -1,6 +1,18 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { API_BASE_URL } from '../config';
 
+/** Dev: '/' → /api/... từ gốc origin (Vite proxy). Tránh resolve theo route /concerts/... */
+function apiBaseUrl(): string {
+  const raw = API_BASE_URL.trim();
+  if (!raw) return '/';
+  return raw.endsWith('/') ? raw : `${raw}/`;
+}
+
+function apiPath(path: string): string {
+  const p = path.startsWith('/') ? path : `/${path}`;
+  return p;
+}
+
 const STORAGE_ACCESS = 'concert_access';
 const STORAGE_REFRESH = 'concert_refresh';
 
@@ -22,7 +34,7 @@ export function clearStoredTokens() {
 }
 
 export const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: apiBaseUrl(),
   timeout: 30000,
   headers: { 'Content-Type': 'application/json' },
 });
@@ -33,7 +45,7 @@ async function refreshAccessToken(): Promise<string | null> {
   const { refresh } = getStoredTokens();
   if (!refresh) return null;
   try {
-    const res = await axios.post(`${API_BASE_URL}api/token/refresh/`, { refresh });
+    const res = await axios.post(apiPath('api/token/refresh/'), { refresh }, { baseURL: apiBaseUrl() });
     const access = res.data.access as string;
     localStorage.setItem(STORAGE_ACCESS, access);
     return access;
@@ -44,6 +56,9 @@ async function refreshAccessToken(): Promise<string | null> {
 }
 
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  if (config.url && !/^https?:\/\//i.test(config.url)) {
+    config.url = apiPath(config.url);
+  }
   const { access } = getStoredTokens();
   if (access && config.headers) {
     config.headers.Authorization = `Bearer ${access}`;

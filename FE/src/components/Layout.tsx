@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import './Layout.css';
 
 export function Layout() {
-  const { isAuthenticated, user, logout } = useAuth();
+  const { isAuthenticated, isAdmin, user, logout } = useAuth();
 
   return (
     <div className="app-shell">
@@ -17,6 +17,9 @@ export function Layout() {
             <NavLink to="/" end>
               Khám phá
             </NavLink>
+            {isAdmin && (
+              <NavLink to="/admin">Quản trị</NavLink>
+            )}
             {isAuthenticated && (
               <>
                 <NavLink to="/tickets">Vé của tôi</NavLink>

@@ -5,6 +5,7 @@ import { ConcertCard } from '../components/ConcertCard';
 import { Spinner } from '../components/Spinner';
 import { getApiErrorMessage, useAuth } from '../context/AuthContext';
 import type { Concert } from '../types';
+import { extractList } from '../utils/apiData';
 import { concertArtistsLabel, formatDateTime } from '../utils/format';
 import './ConcertDetailPage.css';
 
@@ -33,8 +34,12 @@ export function ConcertDetailPage() {
         setRelated(recRes.data.recommendedConcerts ?? []);
         if (isAuthenticated) {
           await concertApi.logBehavior(id, 'view').catch(() => {});
-          const favRes = await concertApi.getFavorites();
-          setIsFavorite((favRes.data ?? []).some((c) => c.id === id));
+          try {
+            const favRes = await concertApi.getFavorites();
+            setIsFavorite(extractList<Concert>(favRes.data).some((c) => c.id === id));
+          } catch {
+            setIsFavorite(false);
+          }
         }
       } catch (e) {
         setMsg(getApiErrorMessage(e));
@@ -72,6 +77,16 @@ export function ConcertDetailPage() {
     navigate(`/concerts/${id}/seats`);
   };
 
+  const previewVr = () => {
+    if (!isAuthenticated) {
+      navigate('/login', { state: { from: `/concerts/${id}/vr-preview` } });
+      return;
+    }
+    navigate(`/concerts/${id}/vr-preview`);
+  };
+
+  const hasVr = !!concert?.venue?.model_glb_path;
+
   if (loading) return <Spinner />;
   if (!concert) return <div className="container page"><p className="empty">{msg ?? 'Không tìm thấy concert.'}</p></div>;
 
@@ -93,6 +108,11 @@ export function ConcertDetailPage() {
               <button type="button" className="btn btn-outline" onClick={toggleFavorite}>
                 {isFavorite ? '♥ Đã yêu thích' : '♡ Thêm yêu thích'}
               </button>
+              {hasVr ? (
+                <button type="button" className="btn btn-outline" onClick={previewVr}>
+                  Xem trước 3D / VR
+                </button>
+              ) : null}
               <button type="button" className="btn btn-primary" onClick={book}>
                 Chọn ghế & đặt vé
               </button>

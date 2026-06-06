@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAdminUser
 from django.db.models import Q
 from .models import Concert, ConcertArtist
 from .serializers import ConcertSerializer
-from app.seats.models import ConcertSeat
+from app.seats.models import ConcertSeat, Seat
 
 
 class ConcertViewSet(viewsets.ModelViewSet):
@@ -59,9 +59,23 @@ class ConcertViewSet(viewsets.ModelViewSet):
         serializer = VenueSerializer(concert.venue)
         return Response(serializer.data)
 
+    def _ensure_concert_seats(self, concert):
+        """Tự tạo concert_seats từ ghế venue nếu concert chưa có vé."""
+        if ConcertSeat.objects.filter(concert=concert).exists():
+            return
+        venue_seats = Seat.objects.filter(venue=concert.venue)
+        ConcertSeat.objects.bulk_create(
+            [
+                ConcertSeat(concert=concert, seat=seat, status='available')
+                for seat in venue_seats
+            ],
+            ignore_conflicts=True,
+        )
+
     @action(detail=True, methods=['get'])
     def seatmap(self, request, pk=None):
         concert = self.get_object()
+        self._ensure_concert_seats(concert)
         zones = concert.venue.seat_zones.all()
         
         seatmap = []
@@ -84,9 +98,30 @@ class ConcertViewSet(viewsets.ModelViewSet):
                         'status': cs.status,
                         'pos_x': cs.seat.pos_x,
                         'pos_y': cs.seat.pos_y,
+                        'pos_z': cs.seat.pos_z,
                     }
                     for cs in seats
                 ]
             })
         
         return Response({'zones': seatmap})
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    def sync_seats(self, request, pk=None):
+        """Tạo concert_seats từ toàn bộ ghế của venue (admin)."""
+        concert = self.get_object()
+        venue_seats = Seat.objects.filter(venue=concert.venue)
+        created = 0
+        for seat in venue_seats:
+            _, was_created = ConcertSeat.objects.get_or_create(
+                concert=concert,
+                seat=seat,
+                defaults={'status': 'available'},
+            )
+            if was_created:
+                created += 1
+        return Response({
+            'message': f'Đồng bộ ghế xong',
+            'created': created,
+            'total': ConcertSeat.objects.filter(concert=concert).count(),
+        })

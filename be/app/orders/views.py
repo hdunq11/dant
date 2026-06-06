@@ -49,12 +49,25 @@ class VoucherListView(generics.ListAPIView):
     queryset = Voucher.objects.filter(is_active=True)
 
 
+class VoucherAdminViewSet(viewsets.ModelViewSet):
+    queryset = Voucher.objects.all().order_by('code')
+    serializer_class = VoucherSerializer
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [IsAdminUser()]
+        return [IsAdminUser()]
+
+
 class OrderViewSet(viewsets.ModelViewSet):
     serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Order.objects.filter(user=self.request.user).select_related('concert')
+        qs = Order.objects.select_related('concert', 'user').prefetch_related('items')
+        if self.request.user.is_staff or getattr(self.request.user, 'role', '') == 'admin':
+            return qs.order_by('-created_at')
+        return qs.filter(user=self.request.user).order_by('-created_at')
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve', 'create', 'pay', 'cancel']:

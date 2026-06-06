@@ -27,8 +27,9 @@ class Seat(models.Model):
     zone = models.ForeignKey(SeatZone, on_delete=models.CASCADE, related_name='seats')
     row_label = models.CharField(max_length=5)  # A, B, C, ...
     seat_number = models.IntegerField()  # 1, 2, 3, ...
-    pos_x = models.FloatField()  # for 2D map
-    pos_y = models.FloatField()  # for 2D map
+    pos_x = models.FloatField()  # map 2D / trục X trong scene 3D
+    pos_y = models.FloatField()  # map 2D / trục Z (chiều sâu) trong scene 3D
+    pos_z = models.FloatField(default=0.0)  # độ cao Y trong scene 3D (từ GLTF)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

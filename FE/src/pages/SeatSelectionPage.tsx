@@ -1,28 +1,42 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { concertApi } from '../api/concertApi';
+import { SeatIcon } from '../components/SeatIcon';
 import { LoadingOverlay, Spinner } from '../components/Spinner';
 import { getApiErrorMessage } from '../context/AuthContext';
-import type { CheckoutState, SeatMapZone, SelectedSeatDetail } from '../types';
-import { formatVnd } from '../utils/format';
+import type { CheckoutState, Concert, SeatMapZone, SelectedSeatDetail } from '../types';
+import { formatDateTime, formatVnd } from '../utils/format';
+import { layoutSeatMapZones } from '../utils/seatMapLayout';
 import './SeatSelectionPage.css';
+
+interface SeatLocationState {
+  selected?: SelectedSeatDetail[];
+}
 
 export function SeatSelectionPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const restoredSelected = (location.state as SeatLocationState | null)?.selected;
+  const [concert, setConcert] = useState<Concert | null>(null);
   const [zones, setZones] = useState<SeatMapZone[]>([]);
   const [activeZoneId, setActiveZoneId] = useState<string | null>(null);
-  const [selected, setSelected] = useState<SelectedSeatDetail[]>([]);
+  const [selected, setSelected] = useState<SelectedSeatDetail[]>(restoredSelected ?? []);
   const [loading, setLoading] = useState(true);
   const [reserving, setReserving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1);
 
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     try {
-      const res = await concertApi.getSeatMap(id);
-      const z = res.data.zones ?? [];
+      const [detailRes, mapRes] = await Promise.all([
+        concertApi.getConcertDetail(id),
+        concertApi.getSeatMap(id),
+      ]);
+      setConcert(detailRes.data);
+      const z = mapRes.data.zones ?? [];
       setZones(z);
       if (z.length) setActiveZoneId(z[0].zone_id ?? null);
     } catch (e) {
@@ -36,12 +50,21 @@ export function SeatSelectionPage() {
     load();
   }, [load]);
 
-  const activeZone = zones.find((z) => z.zone_id === activeZoneId) ?? zones[0];
+  const { zoneLayouts, canvasW, canvasH } = useMemo(
+    () => layoutSeatMapZones(zones),
+    [zones]
+  );
+
   const subtotal = selected.reduce((s, x) => s + x.price, 0);
 
-  const toggleSeat = (zone: SeatMapZone, seatId: string, row: string, number: number) => {
-    const seat = zone.seats?.find((s) => s.seat_id === seatId);
-    if (!seat || seat.status === 'sold' || seat.status === 'reserved') return;
+  const toggleSeat = (
+    zone: Pick<SeatMapZone, 'zone_id' | 'name' | 'price'>,
+    seatId: string,
+    row: string,
+    number: number,
+    status?: string
+  ) => {
+    if (status === 'sold' || status === 'reserved') return;
     if (selected.find((s) => s.seatId === seatId)) {
       setSelected((prev) => prev.filter((s) => s.seatId !== seatId));
       return;
@@ -65,38 +88,11 @@ export function SeatSelectionPage() {
   };
 
   const seatClass = (status?: string, picked?: boolean) => {
-    if (picked) return 'seat seat--selected';
-    if (status === 'sold') return 'seat seat--sold';
-    if (status === 'reserved') return 'seat seat--reserved';
-    return 'seat seat--available';
+    if (picked) return 'arena-seat arena-seat--selected';
+    if (status === 'sold') return 'arena-seat arena-seat--sold';
+    if (status === 'reserved') return 'arena-seat arena-seat--reserved';
+    return 'arena-seat arena-seat--available';
   };
-
-  const mapContent = useMemo(() => {
-    if (!activeZone?.seats?.length) return null;
-    const seats = activeZone.seats;
-    const maxX = Math.max(...seats.map((s) => s.pos_x ?? 0), 100);
-    const maxY = Math.max(...seats.map((s) => s.pos_y ?? 0), 100);
-    const scale = 420 / Math.max(maxX, maxY, 1);
-    return (
-      <div className="seat-map" style={{ width: maxX * scale + 40, height: maxY * scale + 40 }}>
-        {seats.map((seat) => {
-          const sid = seat.seat_id!;
-          const picked = selected.some((s) => s.seatId === sid);
-          return (
-            <button
-              key={sid}
-              type="button"
-              title={`Hàng ${seat.row} · Ghế ${seat.number}`}
-              className={seatClass(seat.status, picked)}
-              style={{ left: (seat.pos_x ?? 0) * scale, top: (seat.pos_y ?? 0) * scale }}
-              onClick={() => toggleSeat(activeZone, sid, seat.row ?? '', seat.number ?? 0)}
-              disabled={seat.status === 'sold' || seat.status === 'reserved'}
-            />
-          );
-        })}
-      </div>
-    );
-  }, [activeZone, selected]);
 
   const continueCheckout = async () => {
     if (!id || selected.length === 0) return;
@@ -122,29 +118,120 @@ export function SeatSelectionPage() {
     }
   };
 
+  const metaLine = concert
+    ? [
+        formatDateTime(concert.start_time),
+        concert.venue?.name,
+        concert.venue?.city,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : '';
+
   if (loading) return <Spinner />;
 
   return (
     <div className="page seat-page">
       <div className="container seat-layout">
         <div className="seat-main">
-          <h1 className="page-title">Chọn ghế</h1>
+          <header className="seat-header">
+            <h1 className="seat-header__title">{concert?.title ?? 'Chọn ghế'}</h1>
+            {metaLine ? <p className="seat-header__meta">{metaLine}</p> : null}
+          </header>
+
           {error ? <div className="alert alert-error">{error}</div> : null}
-          <div className="zone-tabs">
-            {zones.map((z) => (
-              <button
-                key={z.zone_id}
-                type="button"
-                className={`zone-tab ${z.zone_id === activeZoneId ? 'active' : ''}`}
-                onClick={() => setActiveZoneId(z.zone_id ?? null)}
-              >
-                <strong>{z.name}</strong>
-                <span>{formatVnd(z.price)}</span>
-              </button>
-            ))}
+
+          <div className="price-row">
+            <span className="price-row__label">Giá vé:</span>
+            <div className="price-pills">
+              {zones.map((z) => (
+                <button
+                  key={z.zone_id}
+                  type="button"
+                  className={`price-pill ${z.zone_id === activeZoneId ? 'active' : ''}`}
+                  onClick={() => setActiveZoneId(z.zone_id ?? null)}
+                >
+                  <strong>{formatVnd(z.price)}</strong>
+                  <span>{z.name}</span>
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="stage-label">SÂN KHẤU</div>
-          <div className="map-wrap">{mapContent}</div>
+
+          <div className="arena">
+            <div className="arena-viewport">
+              <div
+                className="arena-canvas"
+                style={{
+                  width: canvasW,
+                  height: canvasH,
+                  transform: `scale(${zoom})`,
+                  transformOrigin: 'top center',
+                }}
+              >
+                <div className="arena-stage">Sân khấu</div>
+
+                {zoneLayouts.map((layout) => {
+                  const isActive = !activeZoneId || layout.zoneId === activeZoneId;
+                  return (
+                    <div
+                      key={layout.zoneId}
+                      className={`zone-block ${isActive ? 'zone-block--active' : 'zone-block--dim'}`}
+                      style={{
+                        left: layout.x,
+                        top: layout.y,
+                        width: layout.width,
+                        height: layout.height,
+                        transform: `rotate(${layout.rotate}deg)`,
+                      }}
+                    >
+                      <span className="zone-block__label">{layout.zoneName}</span>
+                      <div className="zone-block__seats">
+                        {layout.seats.map((seat) => {
+                          const picked = selected.some((s) => s.seatId === seat.seatId);
+                          return (
+                            <button
+                              key={seat.seatId}
+                              type="button"
+                              title={`${layout.zoneName} · Hàng ${seat.row} · Ghế ${seat.number}`}
+                              className={seatClass(seat.status, picked)}
+                              style={{ left: seat.x - layout.x, top: seat.y - layout.y }}
+                              onClick={() =>
+                                toggleSeat(
+                                  {
+                                    zone_id: layout.zoneId,
+                                    name: layout.zoneName,
+                                    price: layout.price,
+                                  },
+                                  seat.seatId,
+                                  seat.row,
+                                  seat.number,
+                                  seat.status
+                                )
+                              }
+                              disabled={seat.status === 'sold' || seat.status === 'reserved'}
+                            >
+                              <SeatIcon />
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="zoom-controls">
+              <button type="button" onClick={() => setZoom((z) => Math.min(1.5, z + 0.1))} aria-label="Phóng to">
+                +
+              </button>
+              <button type="button" onClick={() => setZoom((z) => Math.max(0.7, z - 0.1))} aria-label="Thu nhỏ">
+                −
+              </button>
+            </div>
+          </div>
+
           <div className="legend">
             <span><i className="dot available" /> Trống</span>
             <span><i className="dot selected" /> Đã chọn</span>
@@ -152,6 +239,7 @@ export function SeatSelectionPage() {
             <span><i className="dot sold" /> Đã bán</span>
           </div>
         </div>
+
         <aside className="seat-sidebar card">
           <h3>Tóm tắt</h3>
           <p className="summary-total">
@@ -172,6 +260,13 @@ export function SeatSelectionPage() {
           >
             Tiếp tục thanh toán
           </button>
+          <Link
+            to={`/concerts/${id}/vr-preview`}
+            state={{ selected }}
+            className="btn btn-outline btn-block vr-link"
+          >
+            Xem trước 3D / VR
+          </Link>
           <Link to={`/concerts/${id}`} className="back-link">
             ← Quay lại
           </Link>
