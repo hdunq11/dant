@@ -94,6 +94,52 @@
   max-width: 420px;
 }
 
+.vr-rotate-pad {
+  position: absolute;
+  left: 50%;
+  bottom: 88px;
+  transform: translateX(-50%);
+  z-index: 14;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  backdrop-filter: blur(8px);
+  pointer-events: auto;
+}
+
+.vr-rotate-pad__btn {
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(91, 77, 255, 0.25);
+  color: #e2e8f0;
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.vr-rotate-pad__btn:hover {
+  background: rgba(91, 77, 255, 0.45);
+}
+
+.vr-rotate-pad__btn:active {
+  transform: scale(0.94);
+}
+
+.vr-rotate-pad__label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #cbd5e1;
+  min-width: 36px;
+  text-align: center;
+}
+
 .vr-hint {
   position: absolute;
   left: 16px;

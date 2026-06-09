@@ -1,5 +1,6 @@
 import { Component, Suspense, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { OrbitControls, Text } from '@react-three/drei';
+import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useXR } from '@react-three/xr';
 import { Vector3 } from 'three';
@@ -120,6 +121,7 @@ export function VenueScene({
   const previewSeat = seats.find((s) => s.seatId === previewSeatId) ?? null;
   const orbitTarget = useMemo(() => new Vector3(...framing.target), [framing.target]);
   const xrSession = useXR((s) => s.session);
+  const orbitControlsRef = useRef<OrbitControlsImpl>(null);
 
   return (
     <>
@@ -147,10 +149,15 @@ export function VenueScene({
 
       <SeatViewCamera seat={previewSeat} active={viewFromSeat && !xrSession} />
 
-      <DesktopYawControl pivot={orbitTarget} />
+      <DesktopYawControl
+        pivot={orbitTarget}
+        controlsRef={orbitControlsRef}
+        viewFromSeat={viewFromSeat}
+      />
 
       {!xrSession ? (
         <OrbitControls
+          ref={orbitControlsRef}
           enabled={!viewFromSeat}
           target={orbitTarget}
           maxPolarAngle={Math.PI / 2.1}

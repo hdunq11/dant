@@ -9,18 +9,17 @@ import { SNAP_TURN_RAD, useVrViewStore } from './vrViewStore';
 
 const MOVE_SPEED = 3.5;
 const FLY_SPEED = 4;
-const STICK_DEAD = 0.35;
-const SNAP_STICK_THRESHOLD = 0.55;
-const SNAP_COOLDOWN = 0.4;
-const ARRIVE_EPS = 0.08;
+const STICK_DEAD = 0.3;
+const SNAP_STICK_THRESHOLD = 0.5;
+const SMOOTH_TURN_SPEED = 2.2;
+const SNAP_COOLDOWN = 0.35;
+const ARRIVE_EPS = 0.12;
 
 function readMoveStick(gp: Gamepad) {
   const axes = gp.axes;
-  if (axes.length < 2) return { x: 0, z: 0 };
-
   const pairs: [number, number][] = [
-    [axes[2] ?? 0, axes[3] ?? 0],
     [axes[0] ?? 0, axes[1] ?? 0],
+    [axes[2] ?? 0, axes[3] ?? 0],
   ];
 
   for (const [rawX, rawZ] of pairs) {
@@ -31,11 +30,12 @@ function readMoveStick(gp: Gamepad) {
   return { x: 0, z: 0 };
 }
 
+/** Trục ngang thumbstick (Quest: axis 0 hoặc 2) */
 function readTurnAxis(gp: Gamepad): number {
   const axes = gp.axes;
-  const candidates = [axes[2], axes[0]].filter((v): v is number => v != null);
   let best = 0;
-  for (const v of candidates) {
+  for (const idx of [0, 2]) {
+    const v = axes[idx] ?? 0;
     if (Math.abs(v) > Math.abs(best)) best = v;
   }
   return best;
@@ -46,6 +46,13 @@ function lerpAngle(from: number, to: number, t: number) {
   while (diff > Math.PI) diff -= Math.PI * 2;
   while (diff < -Math.PI) diff += Math.PI * 2;
   return from + diff * Math.min(1, t);
+}
+
+function angleDelta(a: number, b: number) {
+  let diff = a - b;
+  while (diff > Math.PI) diff -= Math.PI * 2;
+  while (diff < -Math.PI) diff += Math.PI * 2;
+  return Math.abs(diff);
 }
 
 interface VrPlayerProps {
@@ -63,20 +70,23 @@ export function VrPlayer({ spawn }: VrPlayerProps) {
   const lastSnapDir = useRef(0);
   spawnRef.current = spawn;
 
+  const cancelFly = () => {
+    isFlying.current = false;
+    flyTarget.current = null;
+  };
+
   const applySpawn = () => {
     const origin = originRef.current;
     if (!origin) return;
     const s = spawnRef.current;
     origin.position.set(...s.position);
     origin.rotation.set(0, s.rotationY, 0);
-    flyTarget.current = null;
-    isFlying.current = false;
+    cancelFly();
   };
 
   useEffect(() => {
     if (!session) {
-      flyTarget.current = null;
-      isFlying.current = false;
+      cancelFly();
       return;
     }
     const id = requestAnimationFrame(applySpawn);
@@ -96,36 +106,16 @@ export function VrPlayer({ spawn }: VrPlayerProps) {
       return;
     }
 
-    const s = spawnRef.current;
-    flyTarget.current = {
-      position: new Vector3(...s.position),
-      rotationY: s.rotationY,
-    };
-    isFlying.current = true;
+    cancelFly();
   }, [focusSeat, session, spawn.floorY]);
 
   useFrame((_, delta) => {
     const origin = originRef.current;
     if (!origin || !session) return;
 
-    const target = flyTarget.current;
-    if (target && isFlying.current) {
-      origin.position.lerp(target.position, Math.min(1, delta * FLY_SPEED));
-      origin.rotation.y = lerpAngle(origin.rotation.y, target.rotationY, delta * FLY_SPEED);
-
-      const arrived =
-        origin.position.distanceTo(target.position) < ARRIVE_EPS &&
-        Math.abs(origin.rotation.y - target.rotationY) < 0.05;
-      if (arrived) {
-        origin.position.copy(target.position);
-        origin.rotation.y = target.rotationY;
-        isFlying.current = false;
-      }
-      return;
-    }
-
     const queuedYaw = useVrViewStore.getState().takeYaw();
     if (queuedYaw !== 0) {
+      cancelFly();
       origin.rotation.y += queuedYaw;
     }
 
@@ -133,6 +123,7 @@ export function VrPlayer({ spawn }: VrPlayerProps) {
 
     let moveX = 0;
     let moveZ = 0;
+    let smoothTurn = 0;
 
     for (const src of session.inputSources) {
       const gp = src.gamepad;
@@ -144,30 +135,50 @@ export function VrPlayer({ spawn }: VrPlayerProps) {
         moveZ += move.z;
       }
 
-      if (src.handedness === 'right') {
-        const turnAxis = readTurnAxis(gp);
-        if (
-          Math.abs(turnAxis) >= SNAP_STICK_THRESHOLD &&
-          snapCooldown.current <= 0
-        ) {
-          const dir = Math.sign(turnAxis);
-          if (dir !== lastSnapDir.current || snapCooldown.current <= 0) {
-            origin.rotation.y -= dir * SNAP_TURN_RAD;
-            snapCooldown.current = SNAP_COOLDOWN;
-            lastSnapDir.current = dir;
-          }
-        } else if (Math.abs(turnAxis) < SNAP_STICK_THRESHOLD * 0.5) {
-          lastSnapDir.current = 0;
-        }
+      const turnAxis = readTurnAxis(gp);
+      const absTurn = Math.abs(turnAxis);
+
+      if (absTurn >= SNAP_STICK_THRESHOLD && snapCooldown.current <= 0) {
+        cancelFly();
+        const dir = Math.sign(turnAxis);
+        origin.rotation.y -= dir * SNAP_TURN_RAD;
+        snapCooldown.current = SNAP_COOLDOWN;
+        lastSnapDir.current = dir;
+      } else if (absTurn > STICK_DEAD && absTurn < SNAP_STICK_THRESHOLD) {
+        cancelFly();
+        smoothTurn += turnAxis;
+        lastSnapDir.current = 0;
+      } else if (absTurn <= STICK_DEAD) {
+        if (src.handedness === 'right') lastSnapDir.current = 0;
       }
     }
 
+    if (smoothTurn !== 0) {
+      origin.rotation.y -= smoothTurn * SMOOTH_TURN_SPEED * delta;
+    }
+
     if (moveX !== 0 || moveZ !== 0) {
+      cancelFly();
       const yaw = origin.rotation.y;
       const dx = (moveX * Math.cos(yaw) - moveZ * Math.sin(yaw)) * MOVE_SPEED * delta;
       const dz = (moveX * Math.sin(yaw) + moveZ * Math.cos(yaw)) * MOVE_SPEED * delta;
       origin.position.x += dx;
       origin.position.z += dz;
+    }
+
+    const target = flyTarget.current;
+    if (target && isFlying.current) {
+      origin.position.lerp(target.position, Math.min(1, delta * FLY_SPEED));
+      origin.rotation.y = lerpAngle(origin.rotation.y, target.rotationY, delta * FLY_SPEED);
+
+      const arrived =
+        origin.position.distanceTo(target.position) < ARRIVE_EPS &&
+        angleDelta(origin.rotation.y, target.rotationY) < 0.1;
+      if (arrived) {
+        origin.position.copy(target.position);
+        origin.rotation.y = target.rotationY;
+        cancelFly();
+      }
     }
   });
 
@@ -175,8 +186,7 @@ export function VrPlayer({ spawn }: VrPlayerProps) {
     const origin = originRef.current;
     if (!origin) return;
     origin.position.set(point.x, spawn.floorY, point.z);
-    flyTarget.current = null;
-    isFlying.current = false;
+    cancelFly();
     useVrFocusStore.getState().clearFocus();
   };
 

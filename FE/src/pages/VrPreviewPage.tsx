@@ -308,11 +308,21 @@ export function VrPreviewPage() {
 
       {error ? <div className="alert alert-error vr-alert">{error}</div> : null}
 
+      <div className="vr-rotate-pad" aria-label="Xoay góc nhìn">
+        <button type="button" className="vr-rotate-pad__btn" onClick={snapTurnLeft} title="Xoay trái (Q)">
+          ↺
+        </button>
+        <span className="vr-rotate-pad__label">Xoay</span>
+        <button type="button" className="vr-rotate-pad__btn" onClick={snapTurnRight} title="Xoay phải (E)">
+          ↻
+        </button>
+      </div>
+
       <div className="vr-hint">
         <span>Double-click chọn ghế</span>
-        <span>Desktop: kéo chuột xoay · Q/E xoay 45° · Esc thoát chọn</span>
+        <span>Desktop: kéo chuột · Q/E hoặc nút Xoay</span>
         {xrSupported ? (
-          <span className="vr-hint__note">VR: trigger chọn ghế · nút A thoát chọn · stick phải xoay</span>
+          <span className="vr-hint__note">VR: stick ngang xoay · snap 45° · nút ↺↻ trên màn hình</span>
         ) : (
           <span className="vr-hint__note">WebXR: Chrome + headset (Quest, v.v.)</span>
         )}
