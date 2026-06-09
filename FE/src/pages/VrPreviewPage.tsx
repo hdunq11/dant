@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { concertApi } from '../api/concertApi';
 import { LoadingOverlay, Spinner } from '../components/Spinner';
 import { VrExperience } from '../components/vr/VrExperience';
+import { useVrFocusStore } from '../components/vr/vrFocusStore';
 import { xrStore } from '../components/vr/xrStore';
 import { getApiErrorMessage } from '../context/AuthContext';
 import type { CheckoutState, Concert, SeatMapZone, SelectedSeatDetail } from '../types';
@@ -31,6 +32,9 @@ export function VrPreviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [xrSupported, setXrSupported] = useState(false);
   const [xrEntering, setXrEntering] = useState(false);
+  const [inVr, setInVr] = useState(false);
+  const setFocusSeat = useVrFocusStore((s) => s.setFocusSeat);
+  const clearFocus = useVrFocusStore((s) => s.clearFocus);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -77,6 +81,15 @@ export function VrPreviewPage() {
     }
   }, []);
 
+  useEffect(() => {
+    setInVr(!!xrStore.getState().session);
+    return xrStore.subscribe((state) => {
+      const active = !!state.session;
+      setInVr(active);
+      if (!active) clearFocus();
+    });
+  }, [clearFocus]);
+
   const seats3D = useMemo(() => mapZonesTo3D(zones), [zones]);
   const selectedIds = useMemo(() => new Set(selected.map((s) => s.seatId)), [selected]);
   const subtotal = selected.reduce((s, x) => s + x.price, 0);
@@ -108,21 +121,26 @@ export function VrPreviewPage() {
   };
 
   const handleSelectSeat = (seat: (typeof seats3D)[number]) => {
-    toggleSeat(
-      seat.seatId,
-      seat.zoneId,
-      seat.zoneName,
-      seat.row,
-      seat.number,
-      seat.price,
-      seat.selectable !== false
-    );
+    if (seat.selectable === false) return;
+
+    const wasSelected = selectedIds.has(seat.seatId);
+    toggleSeat(seat.seatId, seat.zoneId, seat.zoneName, seat.row, seat.number, seat.price, true);
+
+    if (inVr) {
+      if (wasSelected) {
+        clearFocus();
+      } else {
+        setFocusSeat(seat);
+        setPreviewSeatId(seat.seatId);
+      }
+    }
   };
 
   const handlePreviewSeat = (seat: (typeof seats3D)[number]) => {
     if (seat.selectable === false) return;
     setPreviewSeatId(seat.seatId);
     setViewFromSeat(true);
+    if (inVr) setFocusSeat(seat);
   };
 
   const enterVr = async () => {
@@ -134,6 +152,7 @@ export function VrPreviewPage() {
     setError(null);
     setViewFromSeat(false);
     setPreviewSeatId(null);
+    clearFocus();
     try {
       const session = await xrStore.enterVR();
       if (!session) {
@@ -231,7 +250,7 @@ export function VrPreviewPage() {
         <span>Double-click xem từ ghế</span>
         <span>Desktop: kéo chuột xoay / scroll zoom</span>
         {xrSupported ? (
-          <span className="vr-hint__note">VR: joystick di chuyển · trigger teleport</span>
+          <span className="vr-hint__note">VR: click ghế để bay tới · joystick/teleport di chuyển</span>
         ) : (
           <span className="vr-hint__note">WebXR: Chrome + headset (Quest, v.v.)</span>
         )}

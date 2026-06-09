@@ -215,3 +215,16 @@ export function mapZonesTo3D(zones: SeatMapZone[]): Seat3D[] {
 export function seatViewPosition(seat: Seat3D): [number, number, number] {
   return [seat.position[0], seat.position[1] + 0.75, seat.position[2]];
 }
+
+/** Vị trí XROrigin (chân người) khi ngồi ghế, quay mặt về sân khấu */
+export function computeSeatOriginPose(
+  seat: Seat3D,
+  floorY = 0
+): { position: [number, number, number]; rotationY: number } {
+  const [sx, , sz] = seat.position;
+  const stage = STAGE_CENTER;
+  return {
+    position: [sx, floorY, sz],
+    rotationY: Math.atan2(stage[0] - sx, stage[2] - sz),
+  };
+}
