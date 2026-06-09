@@ -1,5 +1,6 @@
 import { Instances, Instance } from '@react-three/drei';
 import { type ThreeEvent } from '@react-three/fiber';
+import { useXR } from '@react-three/xr';
 import type { Seat3D } from '../../utils/seatMap3D';
 
 interface SeatInstancesProps {
@@ -7,7 +8,7 @@ interface SeatInstancesProps {
   selectedIds: Set<string>;
   previewSeatId: string | null;
   onSelect: (seat: Seat3D) => void;
-  onPreview: (seat: Seat3D) => void;
+  onPreview?: (seat: Seat3D) => void;
 }
 
 function seatColor(seat: Seat3D, selected: boolean, previewing: boolean) {
@@ -23,8 +24,9 @@ export function SeatInstances({
   selectedIds,
   previewSeatId,
   onSelect,
-  onPreview,
 }: SeatInstancesProps) {
+  const session = useXR((s) => s.session);
+
   if (!seats.length) return null;
 
   const pickSeat = (e: ThreeEvent<MouseEvent>) => {
@@ -34,24 +36,18 @@ export function SeatInstances({
     return seats[idx];
   };
 
-  const handleClick = (e: ThreeEvent<MouseEvent>) => {
+  const handleSelect = (e: ThreeEvent<MouseEvent>) => {
     const seat = pickSeat(e);
     if (!seat || seat.selectable === false) return;
     onSelect(seat);
-  };
-
-  const handleDoubleClick = (e: ThreeEvent<MouseEvent>) => {
-    const seat = pickSeat(e);
-    if (!seat || seat.selectable === false) return;
-    onPreview(seat);
   };
 
   return (
     <Instances
       limit={seats.length}
       range={seats.length}
-      onClick={handleClick}
-      onDoubleClick={handleDoubleClick}
+      onClick={session ? handleSelect : undefined}
+      onDoubleClick={session ? undefined : handleSelect}
       frustumCulled
       pointerEventsType={{ deny: 'grab' }}
     >

@@ -64,6 +64,14 @@
   color: var(--primary);
 }
 
+.vr-turn-btn {
+  min-width: 40px;
+  padding-left: 10px;
+  padding-right: 10px;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
 .vr-topbar__back {
   display: inline-flex;
   align-items: center;

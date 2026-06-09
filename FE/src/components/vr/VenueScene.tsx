@@ -4,7 +4,8 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useXR } from '@react-three/xr';
 import { Vector3 } from 'three';
 import type { Seat3D, VrFraming, VrSpawn } from '../../utils/seatMap3D';
-import { STAGE_CENTER, seatViewPosition } from '../../utils/seatMap3D';
+import { STAGE_CENTER, STAGE_LOOK_AT, seatViewPosition } from '../../utils/seatMap3D';
+import { DesktopYawControl } from './DesktopYawControl';
 import { SeatInstances } from './SeatInstances';
 import { VenueModel } from './VenueModel';
 
@@ -87,7 +88,7 @@ function SeatViewCamera({
 }) {
   const { camera } = useThree();
   const target = useRef(new Vector3());
-  const lookAt = useRef(new Vector3(...STAGE_CENTER));
+  const lookAt = useRef(new Vector3(...STAGE_LOOK_AT));
 
   useEffect(() => {
     if (seat && active) {
@@ -145,6 +146,8 @@ export function VenueScene({
       />
 
       <SeatViewCamera seat={previewSeat} active={viewFromSeat && !xrSession} />
+
+      <DesktopYawControl pivot={orbitTarget} />
 
       {!xrSession ? (
         <OrbitControls

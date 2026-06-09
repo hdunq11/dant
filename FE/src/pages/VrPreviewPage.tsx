@@ -4,6 +4,7 @@ import { concertApi } from '../api/concertApi';
 import { LoadingOverlay, Spinner } from '../components/Spinner';
 import { VrExperience } from '../components/vr/VrExperience';
 import { useVrFocusStore } from '../components/vr/vrFocusStore';
+import { snapTurnLeft, snapTurnRight } from '../components/vr/vrViewStore';
 import { xrStore } from '../components/vr/xrStore';
 import { getApiErrorMessage } from '../context/AuthContext';
 import type { CheckoutState, Concert, SeatMapZone, SelectedSeatDetail } from '../types';
@@ -35,6 +36,7 @@ export function VrPreviewPage() {
   const [inVr, setInVr] = useState(false);
   const setFocusSeat = useVrFocusStore((s) => s.setFocusSeat);
   const clearFocus = useVrFocusStore((s) => s.clearFocus);
+  const setExitSeatSelect = useVrFocusStore((s) => s.setExitSeatSelect);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -90,6 +92,22 @@ export function VrPreviewPage() {
     });
   }, [clearFocus]);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'q' || e.key === 'Q' || e.key === 'ArrowLeft') {
+        snapTurnLeft();
+      }
+      if (e.key === 'e' || e.key === 'E' || e.key === 'ArrowRight') {
+        snapTurnRight();
+      }
+      if (e.key === 'Escape') {
+        useVrFocusStore.getState().exitSeatSelect?.();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const seats3D = useMemo(() => mapZonesTo3D(zones), [zones]);
   const selectedIds = useMemo(() => new Set(selected.map((s) => s.seatId)), [selected]);
   const subtotal = selected.reduce((s, x) => s + x.price, 0);
@@ -120,20 +138,47 @@ export function VrPreviewPage() {
     setError(null);
   };
 
+  const exitSeatSelect = useCallback(() => {
+    const focusSeat = useVrFocusStore.getState().focusSeat;
+    const targetId = previewSeatId ?? focusSeat?.seatId ?? null;
+
+    if (targetId) {
+      const detail = selected.find((s) => s.seatId === targetId);
+      if (detail) {
+        toggleSeat(
+          detail.seatId,
+          detail.zoneId,
+          detail.zoneName,
+          detail.row,
+          detail.number,
+          detail.price,
+          true
+        );
+      }
+    }
+
+    clearFocus();
+    setPreviewSeatId(null);
+    setViewFromSeat(false);
+  }, [previewSeatId, selected, clearFocus]);
+
+  useEffect(() => {
+    setExitSeatSelect(exitSeatSelect);
+    return () => setExitSeatSelect(null);
+  }, [exitSeatSelect, setExitSeatSelect]);
+
   const handleSelectSeat = (seat: (typeof seats3D)[number]) => {
     if (seat.selectable === false) return;
 
-    const wasSelected = selectedIds.has(seat.seatId);
-    toggleSeat(seat.seatId, seat.zoneId, seat.zoneName, seat.row, seat.number, seat.price, true);
-
     if (inVr) {
-      if (wasSelected) {
-        clearFocus();
-      } else {
-        setFocusSeat(seat);
-        setPreviewSeatId(seat.seatId);
-      }
+      if (selectedIds.has(seat.seatId)) return;
+      toggleSeat(seat.seatId, seat.zoneId, seat.zoneName, seat.row, seat.number, seat.price, true);
+      setFocusSeat(seat);
+      setPreviewSeatId(seat.seatId);
+      return;
     }
+
+    toggleSeat(seat.seatId, seat.zoneId, seat.zoneName, seat.row, seat.number, seat.price, true);
   };
 
   const handlePreviewSeat = (seat: (typeof seats3D)[number]) => {
@@ -240,17 +285,34 @@ export function VrPreviewPage() {
           >
             {viewFromSeat ? 'Thoát góc nhìn' : 'Góc nhìn ghế'}
           </button>
+          <button
+            type="button"
+            className="btn btn-outline btn-sm vr-turn-btn"
+            onClick={snapTurnLeft}
+            title="Xoay trái 45° (Q)"
+            aria-label="Xoay trái"
+          >
+            ↺
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline btn-sm vr-turn-btn"
+            onClick={snapTurnRight}
+            title="Xoay phải 45° (E)"
+            aria-label="Xoay phải"
+          >
+            ↻
+          </button>
         </div>
       </header>
 
       {error ? <div className="alert alert-error vr-alert">{error}</div> : null}
 
       <div className="vr-hint">
-        <span>Click chọn ghế</span>
-        <span>Double-click xem từ ghế</span>
-        <span>Desktop: kéo chuột xoay / scroll zoom</span>
+        <span>Double-click chọn ghế</span>
+        <span>Desktop: kéo chuột xoay · Q/E xoay 45° · Esc thoát chọn</span>
         {xrSupported ? (
-          <span className="vr-hint__note">VR: click ghế để bay tới · joystick/teleport di chuyển</span>
+          <span className="vr-hint__note">VR: trigger chọn ghế · nút A thoát chọn · stick phải xoay</span>
         ) : (
           <span className="vr-hint__note">WebXR: Chrome + headset (Quest, v.v.)</span>
         )}

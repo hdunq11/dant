@@ -5,28 +5,40 @@ import type { Group } from 'three';
 import { Vector3 } from 'three';
 import { computeSeatOriginPose, type VrSpawn } from '../../utils/seatMap3D';
 import { useVrFocusStore } from './vrFocusStore';
+import { SNAP_TURN_RAD, useVrViewStore } from './vrViewStore';
 
 const MOVE_SPEED = 3.5;
-const TURN_SPEED = 1.8;
 const FLY_SPEED = 4;
 const STICK_DEAD = 0.35;
+const SNAP_STICK_THRESHOLD = 0.55;
+const SNAP_COOLDOWN = 0.4;
 const ARRIVE_EPS = 0.08;
 
-function readStick(gp: Gamepad, handedness: string) {
+function readMoveStick(gp: Gamepad) {
   const axes = gp.axes;
-  if (axes.length < 2) return { x: 0, z: 0, turn: 0 };
+  if (axes.length < 2) return { x: 0, z: 0 };
 
-  if (handedness === 'left') {
-    const x = Math.abs(axes[2] ?? axes[0] ?? 0) > STICK_DEAD ? (axes[2] ?? axes[0] ?? 0) : 0;
-    const z = Math.abs(axes[3] ?? axes[1] ?? 0) > STICK_DEAD ? (axes[3] ?? axes[1] ?? 0) : 0;
-    return { x, z, turn: 0 };
+  const pairs: [number, number][] = [
+    [axes[2] ?? 0, axes[3] ?? 0],
+    [axes[0] ?? 0, axes[1] ?? 0],
+  ];
+
+  for (const [rawX, rawZ] of pairs) {
+    const x = Math.abs(rawX) > STICK_DEAD ? rawX : 0;
+    const z = Math.abs(rawZ) > STICK_DEAD ? rawZ : 0;
+    if (x !== 0 || z !== 0) return { x, z };
   }
+  return { x: 0, z: 0 };
+}
 
-  const turnAxis = axes[0] ?? 0;
-  const turn = Math.abs(turnAxis) > 0.65 ? Math.sign(turnAxis) : 0;
-  const x = Math.abs(axes[2] ?? 0) > STICK_DEAD ? axes[2] : 0;
-  const z = Math.abs(axes[3] ?? 0) > STICK_DEAD ? axes[3] : 0;
-  return { x, z, turn };
+function readTurnAxis(gp: Gamepad): number {
+  const axes = gp.axes;
+  const candidates = [axes[2], axes[0]].filter((v): v is number => v != null);
+  let best = 0;
+  for (const v of candidates) {
+    if (Math.abs(v) > Math.abs(best)) best = v;
+  }
+  return best;
 }
 
 function lerpAngle(from: number, to: number, t: number) {
@@ -47,6 +59,8 @@ export function VrPlayer({ spawn }: VrPlayerProps) {
   const spawnRef = useRef(spawn);
   const flyTarget = useRef<{ position: Vector3; rotationY: number } | null>(null);
   const isFlying = useRef(false);
+  const snapCooldown = useRef(0);
+  const lastSnapDir = useRef(0);
   spawnRef.current = spawn;
 
   const applySpawn = () => {
@@ -110,17 +124,42 @@ export function VrPlayer({ spawn }: VrPlayerProps) {
       return;
     }
 
+    const queuedYaw = useVrViewStore.getState().takeYaw();
+    if (queuedYaw !== 0) {
+      origin.rotation.y += queuedYaw;
+    }
+
+    snapCooldown.current = Math.max(0, snapCooldown.current - delta);
+
     let moveX = 0;
     let moveZ = 0;
-    let turn = 0;
 
     for (const src of session.inputSources) {
       const gp = src.gamepad;
       if (!gp) continue;
-      const stick = readStick(gp, src.handedness);
-      moveX += stick.x;
-      moveZ += stick.z;
-      turn += stick.turn;
+
+      if (src.handedness === 'left' || src.handedness === 'none') {
+        const move = readMoveStick(gp);
+        moveX += move.x;
+        moveZ += move.z;
+      }
+
+      if (src.handedness === 'right') {
+        const turnAxis = readTurnAxis(gp);
+        if (
+          Math.abs(turnAxis) >= SNAP_STICK_THRESHOLD &&
+          snapCooldown.current <= 0
+        ) {
+          const dir = Math.sign(turnAxis);
+          if (dir !== lastSnapDir.current || snapCooldown.current <= 0) {
+            origin.rotation.y -= dir * SNAP_TURN_RAD;
+            snapCooldown.current = SNAP_COOLDOWN;
+            lastSnapDir.current = dir;
+          }
+        } else if (Math.abs(turnAxis) < SNAP_STICK_THRESHOLD * 0.5) {
+          lastSnapDir.current = 0;
+        }
+      }
     }
 
     if (moveX !== 0 || moveZ !== 0) {
@@ -129,10 +168,6 @@ export function VrPlayer({ spawn }: VrPlayerProps) {
       const dz = (moveX * Math.sin(yaw) + moveZ * Math.cos(yaw)) * MOVE_SPEED * delta;
       origin.position.x += dx;
       origin.position.z += dz;
-    }
-
-    if (turn !== 0) {
-      origin.rotation.y += turn * TURN_SPEED * delta;
     }
   });
 

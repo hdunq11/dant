@@ -5,6 +5,7 @@ import type { Seat3D } from '../../utils/seatMap3D';
 import { computeVrFraming, computeVrSpawn } from '../../utils/seatMap3D';
 import { VenueScene } from './VenueScene';
 import { VrFog } from './VrFog';
+import { VrAbButton } from './VrAbButton';
 import { VrPlayer } from './VrPlayer';
 import { xrStore } from './xrStore';
 
@@ -34,6 +35,7 @@ export function VrExperience({
   const scene = (
     <>
       <VrPlayer spawn={spawn} />
+      <VrAbButton />
       <VenueScene
         seats={seats}
         selectedIds={selectedIds}

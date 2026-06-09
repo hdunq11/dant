@@ -2,7 +2,16 @@ import type { SeatMapSeat, SeatMapZone } from '../types';
 
 /** Tâm sân khấu trong model Sketchfab venue_stage_1 */
 export const STAGE_CENTER: [number, number, number] = [0, 0.45, -3.2];
+/** Điểm nhìn khi ngồi ghế — ngang tầm mắt, hướng sân khấu */
+export const STAGE_LOOK_AT: [number, number, number] = [0, 1.1, -3.2];
 export const STAGE_SIZE: [number, number, number] = [18, 2.5, 7];
+
+/** Góc Y (rad) để mặt hướng về điểm đích; Three.js mặc định nhìn theo -Z */
+export function yawToward(fromX: number, fromZ: number, toX: number, toZ: number): number {
+  const dx = toX - fromX;
+  const dz = toZ - fromZ;
+  return Math.atan2(dx, -dz);
+}
 
 /** Ghế đã import từ GLTF: pos_z > 0 → pos_x/pos_y là tọa độ 3D, không dùng cho sơ đồ 2D */
 export function isGltfSeatCoords(seat: SeatMapSeat): boolean {
@@ -34,7 +43,7 @@ export function computeVrSpawn(seats: Seat3D[], hasVenueModel: boolean): VrSpawn
     const position: [number, number, number] = hasVenueModel ? [0, 0, 10] : [0, 0, 14];
     return {
       position,
-      rotationY: Math.atan2(stage[0] - position[0], stage[2] - position[2]),
+      rotationY: yawToward(position[0], position[2], stage[0], stage[2]),
       floorCenter: [0, 0, 5],
       floorW: 36,
       floorD: 36,
@@ -69,7 +78,7 @@ export function computeVrSpawn(seats: Seat3D[], hasVenueModel: boolean): VrSpawn
 
   return {
     position,
-    rotationY: Math.atan2(stage[0] - position[0], stage[2] - position[2]),
+    rotationY: yawToward(position[0], position[2], stage[0], stage[2]),
     floorCenter: [cx, groundY, cz],
     floorW: width + 12,
     floorD: depth + 16,
@@ -222,9 +231,9 @@ export function computeSeatOriginPose(
   floorY = 0
 ): { position: [number, number, number]; rotationY: number } {
   const [sx, , sz] = seat.position;
-  const stage = STAGE_CENTER;
+  const look = STAGE_LOOK_AT;
   return {
     position: [sx, floorY, sz],
-    rotationY: Math.atan2(stage[0] - sx, stage[2] - sz),
+    rotationY: yawToward(sx, sz, look[0], look[2]),
   };
 }
