@@ -2,8 +2,10 @@ import { useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { XR } from '@react-three/xr';
 import type { Seat3D } from '../../utils/seatMap3D';
-import { computeVrFraming } from '../../utils/seatMap3D';
+import { computeVrFraming, computeVrSpawn } from '../../utils/seatMap3D';
 import { VenueScene } from './VenueScene';
+import { VrFog } from './VrFog';
+import { VrPlayer } from './VrPlayer';
 import { xrStore } from './xrStore';
 
 interface VrExperienceProps {
@@ -25,34 +27,44 @@ export function VrExperience({
   onSelectSeat,
   onPreviewSeat,
 }: VrExperienceProps) {
-  const framing = useMemo(
-    () => computeVrFraming(seats, !!modelPath),
-    [seats, modelPath]
-  );
+  const hasVenueModel = !!modelPath;
+  const framing = useMemo(() => computeVrFraming(seats, hasVenueModel), [seats, hasVenueModel]);
+  const spawn = useMemo(() => computeVrSpawn(seats, hasVenueModel), [seats, hasVenueModel]);
 
   const scene = (
-    <VenueScene
-      seats={seats}
-      selectedIds={selectedIds}
-      previewSeatId={previewSeatId}
-      viewFromSeat={viewFromSeat}
-      modelPath={modelPath}
-      framing={framing}
-      onSelectSeat={onSelectSeat}
-      onPreviewSeat={onPreviewSeat}
-    />
+    <>
+      <VrPlayer spawn={spawn} />
+      <VenueScene
+        seats={seats}
+        selectedIds={selectedIds}
+        previewSeatId={previewSeatId}
+        viewFromSeat={viewFromSeat}
+        modelPath={modelPath}
+        framing={framing}
+        spawn={spawn}
+        onSelectSeat={onSelectSeat}
+        onPreviewSeat={onPreviewSeat}
+      />
+    </>
   );
 
   return (
     <Canvas
       shadows
-      camera={{ position: framing.position, fov: 55, near: 0.1, far: framing.fogFar + 20 }}
+      frameloop="always"
+      dpr={[1, 1.5]}
+      camera={{ position: framing.position, fov: 55, near: 0.05, far: framing.fogFar + 40 }}
       gl={{ antialias: true, alpha: false }}
+      onCreated={({ gl }) => {
+        gl.xr.enabled = true;
+      }}
       style={{ width: '100%', height: '100%' }}
     >
       <color attach="background" args={['#020617']} />
-      <fog attach="fog" args={['#020617', framing.fogNear, framing.fogFar]} />
-      <XR store={xrStore}>{scene}</XR>
+      <XR store={xrStore}>
+        <VrFog framing={framing} />
+        {scene}
+      </XR>
     </Canvas>
   );
 }

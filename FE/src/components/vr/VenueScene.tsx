@@ -3,7 +3,7 @@ import { OrbitControls, Text } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useXR } from '@react-three/xr';
 import { Vector3 } from 'three';
-import type { Seat3D, VrFraming } from '../../utils/seatMap3D';
+import type { Seat3D, VrFraming, VrSpawn } from '../../utils/seatMap3D';
 import { STAGE_CENTER, seatViewPosition } from '../../utils/seatMap3D';
 import { SeatInstances } from './SeatInstances';
 import { VenueModel } from './VenueModel';
@@ -15,21 +15,37 @@ interface VenueSceneProps {
   viewFromSeat: boolean;
   modelPath?: string | null;
   framing: VrFraming;
+  spawn: VrSpawn;
   onSelectSeat: (seat: Seat3D) => void;
   onPreviewSeat: (seat: Seat3D) => void;
 }
 
 function SceneCamera({ framing }: { framing: VrFraming }) {
-  const { camera } = useThree();
+  const { camera, gl } = useThree();
   const initialized = useRef(false);
 
   useEffect(() => {
-    if (initialized.current) return;
+    if (initialized.current || gl.xr.isPresenting) return;
     camera.position.set(...framing.position);
     initialized.current = true;
-  }, [camera, framing]);
+  }, [camera, framing, gl.xr]);
 
   return null;
+}
+
+function VrFloorGuide({ spawn }: { spawn: VrSpawn }) {
+  const session = useXR((s) => s.session);
+  if (!session) return null;
+
+  return (
+    <group position={[spawn.floorCenter[0], spawn.floorY, spawn.floorCenter[2]]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[spawn.floorW, spawn.floorD]} />
+        <meshStandardMaterial color="#0f172a" roughness={0.9} />
+      </mesh>
+      <gridHelper args={[spawn.floorW, 24, '#475569', '#1e293b']} position={[0, 0.02, 0]} />
+    </group>
+  );
 }
 
 class VenueModelErrorBoundary extends Component<
@@ -96,6 +112,7 @@ export function VenueScene({
   viewFromSeat,
   modelPath,
   framing,
+  spawn,
   onSelectSeat,
   onPreviewSeat,
 }: VenueSceneProps) {
@@ -106,9 +123,12 @@ export function VenueScene({
   return (
     <>
       <SceneCamera framing={framing} />
-      <ambientLight intensity={0.65} />
-      <directionalLight position={[5, 12, 8]} intensity={1.2} castShadow />
-      <directionalLight position={[-4, 6, -2]} intensity={0.4} color="#c4b5fd" />
+      <hemisphereLight args={['#c4b5fd', '#0f172a', 0.85]} />
+      <ambientLight intensity={xrSession ? 0.9 : 0.65} />
+      <directionalLight position={[5, 12, 8]} intensity={1.4} castShadow={!xrSession} />
+      <directionalLight position={[-4, 6, -2]} intensity={0.5} color="#c4b5fd" />
+
+      <VrFloorGuide spawn={spawn} />
 
       <VenueModelErrorBoundary fallback={<FallbackStage />}>
         <Suspense fallback={null}>
@@ -124,16 +144,20 @@ export function VenueScene({
         onPreview={onPreviewSeat}
       />
 
-      <SeatViewCamera seat={previewSeat} active={viewFromSeat} />
+      <SeatViewCamera seat={previewSeat} active={viewFromSeat && !xrSession} />
 
-      <OrbitControls
-        enabled={!viewFromSeat && !xrSession}
-        target={orbitTarget}
-        maxPolarAngle={Math.PI / 2.1}
-        minDistance={2}
-        maxDistance={framing.maxDistance}
-        enablePan
-      />
+      {!xrSession ? (
+        <OrbitControls
+          enabled={!viewFromSeat}
+          target={orbitTarget}
+          maxPolarAngle={Math.PI / 2.1}
+          minDistance={2}
+          maxDistance={framing.maxDistance}
+          enablePan
+          enableDamping
+          dampingFactor={0.08}
+        />
+      ) : null}
     </>
   );
 }

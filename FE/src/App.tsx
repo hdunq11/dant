@@ -27,6 +27,7 @@ import { AdminOrdersPage } from './pages/admin/AdminOrdersPage';
 import { AdminVenuesPage } from './pages/admin/AdminVenuesPage';
 import { AdminVouchersPage } from './pages/admin/AdminVouchersPage';
 import { AdminZonesPage } from './pages/admin/AdminZonesPage';
+import { VrExperienceV2 } from './components/vr/VrExperienceV2';
 
 function GuestOnly({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -40,6 +41,7 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
+            <Route path="test" element={<VrExperienceV2 />} />
           <Route element={<Layout />}>
             <Route index element={<HomePage />} />
             <Route path="concerts/:id" element={<ConcertDetailPage />} />

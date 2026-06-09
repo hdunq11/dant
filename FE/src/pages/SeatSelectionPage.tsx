@@ -20,9 +20,9 @@ export function SeatSelectionPage() {
   const location = useLocation();
   const locationState = location.state as SeatLocationState | null;
   const restoredSelected = locationState?.selected;
-  const [holdExpiredMsg, setHoldExpiredMsg] = useState<string | null>(
-    locationState?.holdExpired ? 'Thời gian giữ ghế đã hết. Vui lòng chọn lại.' : null
-  );
+  const holdExpiredMsg = locationState?.holdExpired
+    ? 'Thời gian giữ ghế đã hết. Vui lòng chọn lại.'
+    : null;
   const [concert, setConcert] = useState<Concert | null>(null);
   const [zones, setZones] = useState<SeatMapZone[]>([]);
   const [activeZoneId, setActiveZoneId] = useState<string | null>(null);

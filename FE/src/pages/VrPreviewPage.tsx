@@ -132,14 +132,21 @@ export function VrPreviewPage() {
     }
     setXrEntering(true);
     setError(null);
+    setViewFromSeat(false);
+    setPreviewSeatId(null);
     try {
       const session = await xrStore.enterVR();
       if (!session) {
         setError('Không thể vào chế độ VR. Kiểm tra headset đã kết nối và bật.');
       }
     } catch (e) {
-      setError('Không thể vào chế độ VR. Cần trình duyệt hỗ trợ WebXR (Chrome + headset).');
-      console.error(e);
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(
+        msg.includes('secure')
+          ? 'WebXR cần HTTPS. Trên Quest hãy dùng https:// hoặc truy cập qua Meta Link trên PC.'
+          : `Không thể vào VR: ${msg}`
+      );
+      console.error('enterVR failed:', e);
     } finally {
       setXrEntering(false);
     }
@@ -222,7 +229,12 @@ export function VrPreviewPage() {
       <div className="vr-hint">
         <span>Click chọn ghế</span>
         <span>Double-click xem từ ghế</span>
-        {!xrSupported ? <span className="vr-hint__note">WebXR: Chrome + headset</span> : null}
+        <span>Desktop: kéo chuột xoay / scroll zoom</span>
+        {xrSupported ? (
+          <span className="vr-hint__note">VR: joystick di chuyển · trigger teleport</span>
+        ) : (
+          <span className="vr-hint__note">WebXR: Chrome + headset (Quest, v.v.)</span>
+        )}
       </div>
 
       <aside className="vr-sidebar">

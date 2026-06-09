@@ -17,6 +17,66 @@ export interface VrFraming {
   maxDistance: number;
 }
 
+/** Vị trí chân + sàn teleport khi vào VR (nhìn về phía sân khấu) */
+export interface VrSpawn {
+  position: [number, number, number];
+  rotationY: number;
+  floorCenter: [number, number, number];
+  floorW: number;
+  floorD: number;
+  floorY: number;
+}
+
+export function computeVrSpawn(seats: Seat3D[], hasVenueModel: boolean): VrSpawn {
+  const stage = STAGE_CENTER;
+
+  if (!seats.length) {
+    const position: [number, number, number] = hasVenueModel ? [0, 0, 10] : [0, 0, 14];
+    return {
+      position,
+      rotationY: Math.atan2(stage[0] - position[0], stage[2] - position[2]),
+      floorCenter: [0, 0, 5],
+      floorW: 36,
+      floorD: 36,
+      floorY: 0,
+    };
+  }
+
+  let minX = Infinity;
+  let minZ = Infinity;
+  let maxX = -Infinity;
+  let maxZ = -Infinity;
+  let minY = Infinity;
+
+  for (const seat of seats) {
+    const [x, y, z] = seat.position;
+    minX = Math.min(minX, x);
+    minZ = Math.min(minZ, z);
+    maxX = Math.max(maxX, x);
+    maxZ = Math.max(maxZ, z);
+    minY = Math.min(minY, y);
+  }
+
+  const cx = (minX + maxX) / 2;
+  const cz = (minZ + maxZ) / 2;
+  const width = Math.max(maxX - minX, 8);
+  const depth = Math.max(maxZ - minZ, 8);
+  const groundY = hasVenueModel ? 0 : Math.max(minY - 0.4, 0);
+
+  // Đặt người xem phía sau khán đài (z lớn), quay mặt về sân khấu (z âm hơn)
+  const spawnZ = maxZ + Math.max(depth * 0.2, 2);
+  const position: [number, number, number] = [cx, groundY, spawnZ];
+
+  return {
+    position,
+    rotationY: Math.atan2(stage[0] - position[0], stage[2] - position[2]),
+    floorCenter: [cx, groundY, cz],
+    floorW: width + 12,
+    floorD: depth + 16,
+    floorY: groundY,
+  };
+}
+
 /** Căn camera / orbit theo vùng ghế + sân khấu (sau khi import GLTF) */
 export function computeVrFraming(seats: Seat3D[], hasVenueModel: boolean): VrFraming {
   if (!seats.length) {
