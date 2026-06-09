@@ -14,7 +14,7 @@ function seatColor(seat: Seat3D, selected: boolean, previewing: boolean) {
   if (selected) return '#22c55e';
   if (previewing) return '#fbbf24';
   if (seat.status === 'sold') return '#9ca3af';
-  if (seat.status === 'reserved') return '#f97316';
+  if (seat.status === 'reserved' && !seat.reservedByMe) return '#f97316';
   return seat.color;
 }
 
@@ -36,13 +36,13 @@ export function SeatInstances({
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     const seat = pickSeat(e);
-    if (!seat || seat.status === 'sold' || seat.status === 'reserved') return;
+    if (!seat || seat.selectable === false) return;
     onSelect(seat);
   };
 
   const handleDoubleClick = (e: ThreeEvent<MouseEvent>) => {
     const seat = pickSeat(e);
-    if (!seat || seat.status === 'sold' || seat.status === 'reserved') return;
+    if (!seat || seat.selectable === false) return;
     onPreview(seat);
   };
 
@@ -53,6 +53,7 @@ export function SeatInstances({
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
       frustumCulled
+      pointerEventsType={{ deny: 'grab' }}
     >
       <boxGeometry args={[0.38, 0.45, 0.38]} />
       <meshStandardMaterial />

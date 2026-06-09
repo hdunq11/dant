@@ -11,13 +11,18 @@ import './SeatSelectionPage.css';
 
 interface SeatLocationState {
   selected?: SelectedSeatDetail[];
+  holdExpired?: boolean;
 }
 
 export function SeatSelectionPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const restoredSelected = (location.state as SeatLocationState | null)?.selected;
+  const locationState = location.state as SeatLocationState | null;
+  const restoredSelected = locationState?.selected;
+  const [holdExpiredMsg, setHoldExpiredMsg] = useState<string | null>(
+    locationState?.holdExpired ? 'Thời gian giữ ghế đã hết. Vui lòng chọn lại.' : null
+  );
   const [concert, setConcert] = useState<Concert | null>(null);
   const [zones, setZones] = useState<SeatMapZone[]>([]);
   const [activeZoneId, setActiveZoneId] = useState<string | null>(null);
@@ -50,6 +55,19 @@ export function SeatSelectionPage() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    if (!id) return;
+    const poll = setInterval(async () => {
+      try {
+        const mapRes = await concertApi.getSeatMap(id);
+        setZones(mapRes.data.zones ?? []);
+      } catch {
+        /* ignore polling errors */
+      }
+    }, 5000);
+    return () => clearInterval(poll);
+  }, [id]);
+
   const { zoneLayouts, canvasW, canvasH } = useMemo(
     () => layoutSeatMapZones(zones),
     [zones]
@@ -62,9 +80,11 @@ export function SeatSelectionPage() {
     seatId: string,
     row: string,
     number: number,
-    status?: string
+    status?: string,
+    selectable = true
   ) => {
-    if (status === 'sold' || status === 'reserved') return;
+    if (!selectable || status === 'sold') return;
+    if (status === 'reserved' && !selectable) return;
     if (selected.find((s) => s.seatId === seatId)) {
       setSelected((prev) => prev.filter((s) => s.seatId !== seatId));
       return;
@@ -87,10 +107,10 @@ export function SeatSelectionPage() {
     setError(null);
   };
 
-  const seatClass = (status?: string, picked?: boolean) => {
+  const seatClass = (status?: string, picked?: boolean, reservedByMe?: boolean) => {
     if (picked) return 'arena-seat arena-seat--selected';
     if (status === 'sold') return 'arena-seat arena-seat--sold';
-    if (status === 'reserved') return 'arena-seat arena-seat--reserved';
+    if (status === 'reserved' && !reservedByMe) return 'arena-seat arena-seat--reserved';
     return 'arena-seat arena-seat--available';
   };
 
@@ -139,6 +159,7 @@ export function SeatSelectionPage() {
             {metaLine ? <p className="seat-header__meta">{metaLine}</p> : null}
           </header>
 
+          {holdExpiredMsg ? <div className="alert alert-error">{holdExpiredMsg}</div> : null}
           {error ? <div className="alert alert-error">{error}</div> : null}
 
           <div className="price-row">
@@ -194,7 +215,7 @@ export function SeatSelectionPage() {
                               key={seat.seatId}
                               type="button"
                               title={`${layout.zoneName} · Hàng ${seat.row} · Ghế ${seat.number}`}
-                              className={seatClass(seat.status, picked)}
+                              className={seatClass(seat.status, picked, seat.reservedByMe)}
                               style={{ left: seat.x - layout.x, top: seat.y - layout.y }}
                               onClick={() =>
                                 toggleSeat(
@@ -206,10 +227,11 @@ export function SeatSelectionPage() {
                                   seat.seatId,
                                   seat.row,
                                   seat.number,
-                                  seat.status
+                                  seat.status,
+                                  seat.selectable !== false
                                 )
                               }
-                              disabled={seat.status === 'sold' || seat.status === 'reserved'}
+                              disabled={seat.selectable === false}
                             >
                               <SeatIcon />
                             </button>

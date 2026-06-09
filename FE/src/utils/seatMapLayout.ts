@@ -12,21 +12,18 @@ interface Slot {
   rotate: number;
 }
 
-/** Vị trí các khu quanh sân khấu (giống layout tham chiếu) */
-const STADIUM_SLOTS: Slot[] = [
-  { cx: 360, cy: 165, maxW: 280, maxH: 140, rotate: 0 },
-  { cx: 360, cy: 320, maxW: 220, maxH: 95, rotate: 0 },
-  { cx: 125, cy: 150, maxW: 170, maxH: 115, rotate: -22 },
-  { cx: 595, cy: 150, maxW: 170, maxH: 115, rotate: 22 },
-  { cx: 105, cy: 330, maxW: 150, maxH: 95, rotate: -16 },
-  { cx: 615, cy: 330, maxW: 150, maxH: 95, rotate: 16 },
-];
+const CANVAS_W = 720;
+const STAGE_GAP = 48;
+const ZONE_GAP = 20;
+const MARGIN_X = 40;
 
 export interface LayoutSeat {
   seatId: string;
   row: string;
   number: number;
   status?: string;
+  selectable?: boolean;
+  reservedByMe?: boolean;
   x: number;
   y: number;
 }
@@ -87,6 +84,8 @@ function layoutOneZone(zone: SeatMapZone, slot: Slot, index: number): ZoneLayout
       row: seat.row ?? '',
       number: seat.number ?? 0,
       status: seat.status,
+      selectable: seat.selectable ?? (seat.status !== 'sold' && seat.status !== 'reserved'),
+      reservedByMe: seat.reserved_by_me,
       x: originX + (c.x - minX) * scale,
       y: originY + (c.y - minY) * scale,
     };
@@ -105,22 +104,56 @@ function layoutOneZone(zone: SeatMapZone, slot: Slot, index: number): ZoneLayout
   };
 }
 
+function stackZonesVertically(zones: SeatMapZone[]): ZoneLayout[] {
+  const maxZoneW = CANVAS_W - MARGIN_X * 2;
+  let y = STAGE_GAP;
+  const zoneLayouts: ZoneLayout[] = [];
+
+  for (let i = 0; i < zones.length; i++) {
+    const layout = layoutOneZone(
+      zones[i],
+      { cx: CANVAS_W / 2, cy: y + 60, maxW: maxZoneW, maxH: 160, rotate: 0 },
+      i
+    );
+    if (!layout) continue;
+
+    const x = (CANVAS_W - layout.width) / 2;
+    const dx = x - layout.x;
+    const dy = y - layout.y;
+
+    zoneLayouts.push({
+      ...layout,
+      x,
+      y,
+      rotate: 0,
+      seats: layout.seats.map((s) => ({ ...s, x: s.x + dx, y: s.y + dy })),
+    });
+
+    y += layout.height + ZONE_GAP;
+  }
+
+  return zoneLayouts;
+}
+
 export function layoutSeatMapZones(zones: SeatMapZone[]): {
   zoneLayouts: ZoneLayout[];
   canvasW: number;
   canvasH: number;
 } {
-  const canvasW = 720;
-  const canvasH = 400;
-
   if (zones.length === 1) {
-    const single = layoutOneZone(zones[0], { cx: 360, cy: 200, maxW: 420, maxH: 220, rotate: 0 }, 0);
-    return { zoneLayouts: single ? [single] : [], canvasW, canvasH };
+    const single = layoutOneZone(
+      zones[0],
+      { cx: CANVAS_W / 2, cy: 200, maxW: CANVAS_W - 80, maxH: 280, rotate: 0 },
+      0
+    );
+    return { zoneLayouts: single ? [single] : [], canvasW: CANVAS_W, canvasH: 400 };
   }
 
-  const zoneLayouts = zones
-    .map((zone, i) => layoutOneZone(zone, STADIUM_SLOTS[i % STADIUM_SLOTS.length], i))
-    .filter(Boolean) as ZoneLayout[];
+  const zoneLayouts = stackZonesVertically(zones);
+  const canvasH = Math.max(
+    zoneLayouts.reduce((h, z) => Math.max(h, z.y + z.height), 0) + 24,
+    400
+  );
 
-  return { zoneLayouts, canvasW, canvasH };
+  return { zoneLayouts, canvasW: CANVAS_W, canvasH };
 }

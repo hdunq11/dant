@@ -57,6 +57,8 @@ export interface SeatMapSeat {
   row?: string;
   number?: number;
   status?: string;
+  selectable?: boolean;
+  reserved_by_me?: boolean;
   pos_x?: number;
   pos_y?: number;
   pos_z?: number;
@@ -115,6 +117,21 @@ export interface Order {
   created_at?: string;
   concert_title?: string;
   items?: OrderItem[];
+}
+
+export interface PaymentConfig {
+  enabled?: boolean;
+  client_id?: string;
+  provider?: string;
+  currency?: string;
+}
+
+export interface PayPalOrderResponse {
+  paypal_order_id?: string;
+  client_id?: string;
+  approval_url?: string;
+  amount?: number;
+  currency?: string;
 }
 
 export interface SelectedSeatDetail {

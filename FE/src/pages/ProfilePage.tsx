@@ -7,7 +7,7 @@ import type { Concert, Order } from '../types';
 import { extractList } from '../utils/apiData';
 import './ProfilePage.css';
 
-const PAYMENT_INFO = `Thanh toán qua MoMo, VNPAY hoặc thẻ quốc tế.\nPhí đặt chỗ: 20.000đ/đơn.\nVé giấy: +30.000đ.\nBảo hiểm: 50.000đ/ghế.`;
+const PAYMENT_INFO = `Thanh toán qua PayPal Sandbox (tài khoản test, không trừ tiền thật).\nPhí đặt chỗ: 20.000đ/đơn.\nVé giấy: +30.000đ.\nBảo hiểm: 50.000đ/ghế.`;
 const TERMS = `Bằng việc sử dụng website, bạn đồng ý với điều khoản đặt vé và chính sách hoàn/hủy theo quy định nhà tổ chức.`;
 
 export function ProfilePage() {

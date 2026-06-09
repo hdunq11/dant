@@ -15,7 +15,7 @@ function seatColor(seat: Seat3D, selected: boolean, previewing: boolean, hovered
   if (selected) return '#22c55e';
   if (previewing) return '#fbbf24';
   if (seat.status === 'sold') return '#9ca3af';
-  if (seat.status === 'reserved') return '#f97316';
+  if (seat.status === 'reserved' && !seat.reservedByMe) return '#f97316';
   if (hovered) return '#818cf8';
   return seat.color;
 }
@@ -23,7 +23,7 @@ function seatColor(seat: Seat3D, selected: boolean, previewing: boolean, hovered
 export function SeatMesh({ seat, selected, previewing, onSelect, onPreview }: SeatMeshProps) {
   const ref = useRef<Mesh>(null);
   const [hovered, setHovered] = useState(false);
-  const disabled = seat.status === 'sold' || seat.status === 'reserved';
+  const disabled = seat.selectable === false;
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();

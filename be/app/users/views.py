@@ -139,19 +139,27 @@ class UserOrdersView(generics.ListAPIView):
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
-        orders = [{
-            'id': str(order.id),
-            'concert_title': order.concert.title,
-            'seat_subtotal': float(getattr(order, 'seat_subtotal', 0) or 0),
-            'booking_fee': float(getattr(order, 'booking_fee', 0) or 0),
-            'delivery_fee': float(getattr(order, 'delivery_fee', 0) or 0),
-            'insurance_fee': float(getattr(order, 'insurance_fee', 0) or 0),
-            'discount_amount': float(getattr(order, 'discount_amount', 0) or 0),
-            'voucher_code': order.voucher_code,
-            'delivery_method': order.delivery_method,
-            'payment_method': order.payment_method,
-            'total_price': float(order.total_price),
-            'status': order.status,
-            'created_at': order.created_at.isoformat(),
-        } for order in queryset]
+        orders = []
+        for order in queryset.select_related('concert', 'concert__venue'):
+            concert = order.concert
+            venue = concert.venue if concert else None
+            orders.append({
+                'id': str(order.id),
+                'concert_title': concert.title if concert else None,
+                'concert_venue_name': venue.name if venue else None,
+                'concert_city': venue.city if venue else None,
+                'concert_start_time': concert.start_time.isoformat() if concert and concert.start_time else None,
+                'concert_end_time': concert.end_time.isoformat() if concert and concert.end_time else None,
+                'seat_subtotal': float(getattr(order, 'seat_subtotal', 0) or 0),
+                'booking_fee': float(getattr(order, 'booking_fee', 0) or 0),
+                'delivery_fee': float(getattr(order, 'delivery_fee', 0) or 0),
+                'insurance_fee': float(getattr(order, 'insurance_fee', 0) or 0),
+                'discount_amount': float(getattr(order, 'discount_amount', 0) or 0),
+                'voucher_code': order.voucher_code,
+                'delivery_method': order.delivery_method,
+                'payment_method': order.payment_method,
+                'total_price': float(order.total_price),
+                'status': order.status,
+                'created_at': order.created_at.isoformat(),
+            })
         return Response(orders)

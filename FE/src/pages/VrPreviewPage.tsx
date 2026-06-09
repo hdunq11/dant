@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { concertApi } from '../api/concertApi';
 import { LoadingOverlay, Spinner } from '../components/Spinner';
-import { VrExperience, xrStore } from '../components/vr/VrExperience';
+import { VrExperience } from '../components/vr/VrExperience';
+import { xrStore } from '../components/vr/xrStore';
 import { getApiErrorMessage } from '../context/AuthContext';
 import type { CheckoutState, Concert, SeatMapZone, SelectedSeatDetail } from '../types';
 import { formatDateTime, formatVnd } from '../utils/format';
@@ -53,6 +54,19 @@ export function VrPreviewPage() {
   }, [load]);
 
   useEffect(() => {
+    if (!id) return;
+    const poll = setInterval(async () => {
+      try {
+        const mapRes = await concertApi.getSeatMap(id);
+        setZones(mapRes.data.zones ?? []);
+      } catch {
+        /* ignore */
+      }
+    }, 5000);
+    return () => clearInterval(poll);
+  }, [id]);
+
+  useEffect(() => {
     const path = concert?.venue?.model_glb_path;
     if (path) preloadVenueModel(`/${path}`);
   }, [concert?.venue?.model_glb_path]);
@@ -67,8 +81,16 @@ export function VrPreviewPage() {
   const selectedIds = useMemo(() => new Set(selected.map((s) => s.seatId)), [selected]);
   const subtotal = selected.reduce((s, x) => s + x.price, 0);
 
-  const toggleSeat = (seatId: string, zoneId: string, zoneName: string, row: string, number: number, price: number, status?: string) => {
-    if (status === 'sold' || status === 'reserved') return;
+  const toggleSeat = (
+    seatId: string,
+    zoneId: string,
+    zoneName: string,
+    row: string,
+    number: number,
+    price: number,
+    selectable = true
+  ) => {
+    if (!selectable) return;
     if (selected.find((s) => s.seatId === seatId)) {
       setSelected((prev) => prev.filter((s) => s.seatId !== seatId));
       if (previewSeatId === seatId) {
@@ -86,22 +108,37 @@ export function VrPreviewPage() {
   };
 
   const handleSelectSeat = (seat: (typeof seats3D)[number]) => {
-    toggleSeat(seat.seatId, seat.zoneId, seat.zoneName, seat.row, seat.number, seat.price, seat.status);
+    toggleSeat(
+      seat.seatId,
+      seat.zoneId,
+      seat.zoneName,
+      seat.row,
+      seat.number,
+      seat.price,
+      seat.selectable !== false
+    );
   };
 
   const handlePreviewSeat = (seat: (typeof seats3D)[number]) => {
-    if (seat.status === 'sold' || seat.status === 'reserved') return;
+    if (seat.selectable === false) return;
     setPreviewSeatId(seat.seatId);
     setViewFromSeat(true);
   };
 
   const enterVr = async () => {
+    if (!xrSupported) {
+      setError('Trình duyệt không hỗ trợ WebXR VR. Dùng Chrome + headset (Quest, v.v.).');
+      return;
+    }
     setXrEntering(true);
     setError(null);
     try {
-      await xrStore.enterVR();
+      const session = await xrStore.enterVR();
+      if (!session) {
+        setError('Không thể vào chế độ VR. Kiểm tra headset đã kết nối và bật.');
+      }
     } catch (e) {
-      setError('Không thể vào chế độ VR. Thử trình duyệt hỗ trợ WebXR hoặc dùng emulator trên localhost.');
+      setError('Không thể vào chế độ VR. Cần trình duyệt hỗ trợ WebXR (Chrome + headset).');
       console.error(e);
     } finally {
       setXrEntering(false);
@@ -165,7 +202,7 @@ export function VrPreviewPage() {
             type="button"
             className="btn btn-primary btn-sm"
             onClick={enterVr}
-            disabled={xrEntering}
+            disabled={xrEntering || !xrSupported}
           >
             {xrEntering ? 'Đang vào VR...' : 'Vào VR'}
           </button>

@@ -1,6 +1,7 @@
 import { Component, Suspense, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { OrbitControls, Text } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
+import { useXR } from '@react-three/xr';
 import { Vector3 } from 'three';
 import type { Seat3D, VrFraming } from '../../utils/seatMap3D';
 import { STAGE_CENTER, seatViewPosition } from '../../utils/seatMap3D';
@@ -100,6 +101,7 @@ export function VenueScene({
 }: VenueSceneProps) {
   const previewSeat = seats.find((s) => s.seatId === previewSeatId) ?? null;
   const orbitTarget = useMemo(() => new Vector3(...framing.target), [framing.target]);
+  const xrSession = useXR((s) => s.session);
 
   return (
     <>
@@ -125,7 +127,7 @@ export function VenueScene({
       <SeatViewCamera seat={previewSeat} active={viewFromSeat} />
 
       <OrbitControls
-        enabled={!viewFromSeat}
+        enabled={!viewFromSeat && !xrSession}
         target={orbitTarget}
         maxPolarAngle={Math.PI / 2.1}
         minDistance={2}

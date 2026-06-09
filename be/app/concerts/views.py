@@ -6,6 +6,7 @@ from django.db.models import Q
 from .models import Concert, ConcertArtist
 from .serializers import ConcertSerializer
 from app.seats.models import ConcertSeat, Seat
+from app.seats.reservation import release_expired_reservations, serialize_map_seat
 
 
 class ConcertViewSet(viewsets.ModelViewSet):
@@ -76,34 +77,24 @@ class ConcertViewSet(viewsets.ModelViewSet):
     def seatmap(self, request, pk=None):
         concert = self.get_object()
         self._ensure_concert_seats(concert)
+        release_expired_reservations(concert)
         zones = concert.venue.seat_zones.all()
-        
+
         seatmap = []
         for zone in zones:
             seats = ConcertSeat.objects.filter(
                 concert=concert,
                 seat__zone=zone
-            ).select_related('seat')
-            
+            ).select_related('seat', 'reserved_by')
+
             seatmap.append({
                 'zone_id': str(zone.id),
                 'name': zone.name,
                 'price': float(zone.price),
                 'color': zone.color,
-                'seats': [
-                    {
-                        'seat_id': str(cs.seat.id),
-                        'row': cs.seat.row_label,
-                        'number': cs.seat.seat_number,
-                        'status': cs.status,
-                        'pos_x': cs.seat.pos_x,
-                        'pos_y': cs.seat.pos_y,
-                        'pos_z': cs.seat.pos_z,
-                    }
-                    for cs in seats
-                ]
+                'seats': [serialize_map_seat(cs, request.user) for cs in seats],
             })
-        
+
         return Response({'zones': seatmap})
 
     @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])

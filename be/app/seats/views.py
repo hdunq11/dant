@@ -1,12 +1,15 @@
-from rest_framework import viewsets, generics, status
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAdminUser, IsAuthenticated
-from django.utils import timezone
-from datetime import timedelta
 from .models import SeatZone, Seat, ConcertSeat
-from .serializers import SeatZoneSerializer, SeatSerializer, ConcertSeatSerializer
+from .serializers import SeatZoneSerializer, SeatSerializer
 from app.concerts.models import Concert
+from .reservation import (
+    hold_until,
+    release_expired_reservations,
+    release_user_reservations,
+)
 
 
 class SeatZoneViewSet(viewsets.ModelViewSet):
@@ -31,7 +34,7 @@ class SeatZoneViewSet(viewsets.ModelViewSet):
         zone = self.get_object()
         rows = request.data.get('rows', [])
         seats_per_row = request.data.get('seats_per_row', 10)
-        
+
         seats = []
         for row_idx, row_label in enumerate(rows):
             for seat_num in range(1, seats_per_row + 1):
@@ -40,11 +43,11 @@ class SeatZoneViewSet(viewsets.ModelViewSet):
                     zone=zone,
                     row_label=row_label,
                     seat_number=seat_num,
-                    pos_x=seat_num * 10.0,  # Simple 2D positioning
+                    pos_x=seat_num * 10.0,
                     pos_y=row_idx * 10.0,
                 )
                 seats.append(seat)
-        
+
         return Response({
             'message': f'Generated {len(seats)} seats',
             'count': len(seats)
@@ -71,7 +74,7 @@ class ConcertSeatViewSet(viewsets.ViewSet):
         """Reserve seats for a concert"""
         concert_id = request.data.get('concert_id')
         seat_ids = request.data.get('seat_ids', [])
-        
+
         try:
             concert = Concert.objects.get(id=concert_id)
         except Concert.DoesNotExist:
@@ -79,19 +82,37 @@ class ConcertSeatViewSet(viewsets.ViewSet):
                 {'error': 'Concert not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
-        
+
+        release_expired_reservations(concert)
+
         reserved_seats = []
+        until = hold_until()
+
         for seat_id in seat_ids:
             try:
                 concert_seat = ConcertSeat.objects.get(concert=concert, seat_id=seat_id)
-                if concert_seat.status != 'available':
+
+                if concert_seat.status == 'sold':
                     return Response(
                         {'error': f'Seat {seat_id} is not available'},
                         status=status.HTTP_400_BAD_REQUEST
                     )
-                
+
+                if concert_seat.status == 'reserved':
+                    if concert_seat.reserved_by_id != request.user.id:
+                        return Response(
+                            {'error': f'Seat {seat_id} is not available'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                elif concert_seat.status != 'available':
+                    return Response(
+                        {'error': f'Seat {seat_id} is not available'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
                 concert_seat.status = 'reserved'
-                concert_seat.reserved_until = timezone.now() + timedelta(minutes=10)
+                concert_seat.reserved_until = until
+                concert_seat.reserved_by = request.user
                 concert_seat.save()
                 reserved_seats.append(concert_seat)
             except ConcertSeat.DoesNotExist:
@@ -99,10 +120,27 @@ class ConcertSeatViewSet(viewsets.ViewSet):
                     {'error': f'Seat {seat_id} not found'},
                     status=status.HTTP_404_NOT_FOUND
                 )
-        
-        reserved_until = timezone.now() + timedelta(minutes=10)
+
         return Response({
             'message': f'Reserved {len(reserved_seats)} seats',
-            'reserved_until': reserved_until.isoformat(),
+            'reserved_until': until.isoformat(),
             'reserved_count': len(reserved_seats),
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'])
+    def release(self, request):
+        """Release seats held by current user for a concert."""
+        concert_id = request.data.get('concert_id')
+        try:
+            concert = Concert.objects.get(id=concert_id)
+        except Concert.DoesNotExist:
+            return Response(
+                {'error': 'Concert not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        count = release_user_reservations(concert, request.user)
+        return Response({
+            'message': f'Released {count} seats',
+            'released_count': count,
         }, status=status.HTTP_200_OK)

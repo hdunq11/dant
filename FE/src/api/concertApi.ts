@@ -4,6 +4,8 @@ import type {
   LoginResponse,
   Order,
   PaginatedResponse,
+  PaymentConfig,
+  PayPalOrderResponse,
   RecommendationResponse,
   ReserveResponse,
   SeatMapResponse,
@@ -60,11 +62,18 @@ export const concertApi = {
       seat_ids: seatIds,
     }),
 
+  releaseSeats: (concertId: string) =>
+    api.post<{ message?: string; released_count?: number }>('api/seats/booking/release/', {
+      concert_id: concertId,
+    }),
+
   validateVoucher: (code: string, seatSubtotal: number) =>
     api.post<VoucherValidateResponse>('api/orders/vouchers/validate/', {
       code,
       seat_subtotal: seatSubtotal,
     }),
+
+  getPaymentConfig: () => api.get<PaymentConfig>('api/orders/payment-config/'),
 
   createOrder: (body: {
     concert_id: string;
@@ -75,7 +84,13 @@ export const concertApi = {
     voucher_code?: string;
   }) => api.post<Order>('api/orders/orders/', body),
 
-  payOrder: (id: string) => api.post(`api/orders/orders/${id}/pay/`),
+  createPayPalOrder: (
+    id: string,
+    body?: { return_url?: string; cancel_url?: string }
+  ) => api.post<PayPalOrderResponse>(`api/orders/orders/${id}/create_paypal_order/`, body ?? {}),
+
+  payOrder: (id: string, paypalOrderId: string) =>
+    api.post(`api/orders/orders/${id}/pay/`, { paypal_order_id: paypalOrderId }),
 
   cancelOrder: (id: string) => api.post(`api/orders/orders/${id}/cancel/`),
 

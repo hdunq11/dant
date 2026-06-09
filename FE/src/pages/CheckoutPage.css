@@ -88,6 +88,40 @@
   color: var(--text-primary);
 }
 
+.payment-sandbox-info {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.payment-config-warning {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--error, #ef4444);
+}
+
+.paypal-payment-wrap {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.paypal-payment-error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--error, #ef4444);
+}
+
+.paypal-payment-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted, #9ca3c7);
+  text-align: center;
+  line-height: 1.5;
+}
+
 @media (max-width: 900px) {
   .checkout-layout {
     grid-template-columns: 1fr;

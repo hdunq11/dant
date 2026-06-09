@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { concertApi } from '../api/concertApi';
+import { PayPalPaymentButtons } from '../components/PayPalPaymentButtons';
 import { LoadingOverlay } from '../components/Spinner';
 import { getApiErrorMessage } from '../context/AuthContext';
 import type { CheckoutState } from '../types';
@@ -17,19 +18,28 @@ function loadCheckout(): CheckoutState | null {
   }
 }
 
+interface PaymentSession {
+  orderId: string;
+  paypalOrderId: string;
+  clientId: string;
+  currency: string;
+}
+
 export function CheckoutPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const checkout = loadCheckout();
   const [deliveryMethod, setDeliveryMethod] = useState<'e_ticket' | 'paper'>('e_ticket');
   const [hasInsurance, setHasInsurance] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState('momo');
   const [voucherCode, setVoucherCode] = useState('');
   const [discount, setDiscount] = useState(0);
   const [voucherMsg, setVoucherMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [countdown, setCountdown] = useState('');
+  const [paymentEnabled, setPaymentEnabled] = useState<boolean | null>(null);
+  const [paymentCurrency, setPaymentCurrency] = useState('USD');
+  const [paymentSession, setPaymentSession] = useState<PaymentSession | null>(null);
 
   useEffect(() => {
     if (!checkout || checkout.concertId !== id) {
@@ -38,9 +48,37 @@ export function CheckoutPage() {
   }, [checkout, id, navigate]);
 
   useEffect(() => {
-    if (!checkout?.reservedUntil) return;
+    concertApi
+      .getPaymentConfig()
+      .then((res) => {
+        setPaymentEnabled(res.data.enabled === true);
+        if (res.data.currency) setPaymentCurrency(res.data.currency);
+      })
+      .catch(() => setPaymentEnabled(false));
+  }, []);
+
+  useEffect(() => {
+    if (!checkout?.reservedUntil || !id) return;
+
+    let expired = false;
+    const handleExpired = () => {
+      if (expired) return;
+      expired = true;
+      sessionStorage.removeItem('checkout');
+      concertApi.releaseSeats(checkout.concertId).catch(() => undefined);
+      navigate(`/concerts/${id}/seats`, {
+        replace: true,
+        state: { holdExpired: true },
+      });
+    };
+
     const tick = () => {
-      const left = Math.max(0, new Date(checkout.reservedUntil).getTime() - Date.now());
+      const left = new Date(checkout.reservedUntil).getTime() - Date.now();
+      if (left <= 0) {
+        setCountdown('0:00');
+        handleExpired();
+        return;
+      }
       const m = Math.floor(left / 60000);
       const s = Math.floor((left % 60000) / 1000);
       setCountdown(`${m}:${s.toString().padStart(2, '0')}`);
@@ -48,7 +86,7 @@ export function CheckoutPage() {
     tick();
     const t = setInterval(tick, 1000);
     return () => clearInterval(t);
-  }, [checkout?.reservedUntil]);
+  }, [checkout, id, navigate]);
 
   const preview = useMemo(() => {
     if (!checkout) return null;
@@ -79,31 +117,62 @@ export function CheckoutPage() {
     }
   };
 
-  const pay = async () => {
-    if (!checkout || !id) return;
+  const startPayment = async () => {
+    if (!checkout || !id || paymentSession) return;
+
+    if (paymentEnabled === false) {
+      alert(
+        'PayPal sandbox chưa được cấu hình. Đặt PAYPAL_CLIENT_ID và PAYPAL_CLIENT_SECRET trong file .env của backend.'
+      );
+      return;
+    }
+
     setLoading(true);
-    setProgress('Đang khởi tạo đơn...');
+    setProgress('Đang tạo đơn đặt vé...');
     try {
       const orderRes = await concertApi.createOrder({
         concert_id: checkout.concertId,
         seat_ids: checkout.seatIds,
         delivery_method: deliveryMethod,
         has_insurance: hasInsurance,
-        payment_method: paymentMethod,
+        payment_method: 'paypal',
         voucher_code: discount > 0 ? voucherCode.trim() : undefined,
       });
-      setProgress('Đang kết nối cổng thanh toán...');
-      await new Promise((r) => setTimeout(r, 600));
-      setProgress('Đang xử lý giao dịch...');
-      await concertApi.payOrder(orderRes.data.id!);
-      sessionStorage.removeItem('checkout');
-      navigate(`/orders/${orderRes.data.id}/success`, { replace: true });
+
+      setProgress('Đang khởi tạo phiên PayPal...');
+      const returnUrl = `${window.location.origin}/orders/paypal/return`;
+      const cancelUrl = `${window.location.origin}/concerts/${id}/checkout`;
+
+      const paymentRes = await concertApi.createPayPalOrder(orderRes.data.id!, {
+        return_url: returnUrl,
+        cancel_url: cancelUrl,
+      });
+
+      const { paypal_order_id, client_id } = paymentRes.data;
+      const clientId = client_id || (await concertApi.getPaymentConfig()).data.client_id;
+
+      if (!paypal_order_id || !clientId) {
+        throw new Error('Phản hồi thanh toán không hợp lệ từ server.');
+      }
+
+      setPaymentSession({
+        orderId: orderRes.data.id!,
+        paypalOrderId: paypal_order_id,
+        clientId,
+        currency: paymentRes.data.currency || paymentCurrency,
+      });
     } catch (err) {
       alert(getApiErrorMessage(err));
     } finally {
       setLoading(false);
       setProgress(null);
     }
+  };
+
+  const handlePaymentSuccess = () => {
+    if (!paymentSession) return;
+    sessionStorage.removeItem('checkout');
+    navigate(`/orders/${paymentSession.orderId}/success`, { replace: true });
   };
 
   if (!checkout) return null;
@@ -133,8 +202,9 @@ export function CheckoutPage() {
                 value={voucherCode}
                 onChange={(e) => setVoucherCode(e.target.value)}
                 placeholder="DATN10, CONCERT20..."
+                disabled={!!paymentSession}
               />
-              <button type="submit" className="btn btn-outline">
+              <button type="submit" className="btn btn-outline" disabled={!!paymentSession}>
                 Áp dụng
               </button>
             </form>
@@ -148,6 +218,7 @@ export function CheckoutPage() {
                 type="radio"
                 checked={deliveryMethod === 'e_ticket'}
                 onChange={() => setDeliveryMethod('e_ticket')}
+                disabled={!!paymentSession}
               />
               Vé điện tử (miễn phí)
             </label>
@@ -156,31 +227,26 @@ export function CheckoutPage() {
                 type="radio"
                 checked={deliveryMethod === 'paper'}
                 onChange={() => setDeliveryMethod('paper')}
+                disabled={!!paymentSession}
               />
               Vé giấy (+30.000đ)
             </label>
             <label className="radio-row">
-              <input type="checkbox" checked={hasInsurance} onChange={(e) => setHasInsurance(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={hasInsurance}
+                onChange={(e) => setHasInsurance(e.target.checked)}
+                disabled={!!paymentSession}
+              />
               Bảo hiểm ghế (+50.000đ/ghế)
             </label>
           </section>
 
           <section className="checkout-section card">
             <h2>Phương thức thanh toán</h2>
-            {[
-              ['momo', 'MoMo'],
-              ['credit_card', 'Thẻ Visa/Mastercard'],
-              ['vnpay', 'VNPAY'],
-            ].map(([val, label]) => (
-              <label key={val} className="radio-row">
-                <input
-                  type="radio"
-                  checked={paymentMethod === val}
-                  onChange={() => setPaymentMethod(val)}
-                />
-                {label}
-              </label>
-            ))}
+            <p className="payment-sandbox-info">
+              Thanh toán qua <strong>PayPal Sandbox</strong> (tài khoản test, không trừ tiền thật).
+            </p>
           </section>
         </div>
 
@@ -216,9 +282,32 @@ export function CheckoutPage() {
               </div>
             </>
           )}
-          <button type="button" className="btn btn-primary btn-block" onClick={pay} disabled={loading}>
-            Thanh toán ngay
-          </button>
+
+          {paymentSession ? (
+            <PayPalPaymentButtons
+              clientId={paymentSession.clientId}
+              currency={paymentSession.currency}
+              paypalOrderId={paymentSession.paypalOrderId}
+              orderId={paymentSession.orderId}
+              onSuccess={handlePaymentSuccess}
+            />
+          ) : (
+            <button
+              type="button"
+              className="btn btn-primary btn-block"
+              onClick={startPayment}
+              disabled={loading || paymentEnabled === false}
+            >
+              Tiếp tục thanh toán PayPal
+            </button>
+          )}
+
+          {paymentEnabled === false ? (
+            <p className="payment-config-warning">
+              PayPal sandbox chưa được cấu hình trên server.
+            </p>
+          ) : null}
+
           <Link to={`/concerts/${id}/seats`} className="back-link">
             ← Chọn lại ghế
           </Link>

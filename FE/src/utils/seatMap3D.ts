@@ -72,6 +72,8 @@ export interface Seat3D {
   row: string;
   number: number;
   status?: string;
+  selectable?: boolean;
+  reservedByMe?: boolean;
   zoneId: string;
   zoneName: string;
   price: number;
@@ -137,6 +139,8 @@ export function mapZonesTo3D(zones: SeatMapZone[]): Seat3D[] {
       row: seat.row ?? '',
       number: seat.number ?? 0,
       status: seat.status,
+      selectable: seat.selectable ?? (seat.status !== 'sold' && seat.status !== 'reserved'),
+      reservedByMe: seat.reserved_by_me,
       zoneId: zone.zone_id!,
       zoneName: zone.name ?? `Khu ${zoneIndex + 1}`,
       price: zone.price ?? 0,

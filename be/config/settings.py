@@ -12,9 +12,17 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 import os
 from pathlib import Path
+from decouple import Config, RepositoryEmpty, RepositoryEnv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+_env_file = BASE_DIR / '.env'
+config = (
+    Config(RepositoryEnv(str(_env_file)))
+    if _env_file.is_file()
+    else Config(RepositoryEmpty())
+)
 
 
 # Quick-start development settings - unsuitable for production
@@ -199,3 +207,11 @@ SIMPLE_JWT = {
 
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'
+
+# PayPal sandbox — https://developer.paypal.com/dashboard/applications/sandbox
+PAYPAL_CLIENT_ID = config('PAYPAL_CLIENT_ID', default='')
+PAYPAL_CLIENT_SECRET = config('PAYPAL_CLIENT_SECRET', default='')
+PAYPAL_MODE = config('PAYPAL_MODE', default='sandbox')
+# PayPal sandbox thường không hỗ trợ VND — dùng USD + quy đổi từ giá VND
+PAYPAL_CURRENCY = config('PAYPAL_CURRENCY', default='USD')
+PAYPAL_VND_PER_USD = config('PAYPAL_VND_PER_USD', default=25000, cast=int)

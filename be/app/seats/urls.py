@@ -9,4 +9,5 @@ router.register(r'seats', SeatViewSet)
 urlpatterns = [
     path('', include(router.urls)),
     path('booking/reserve/', ConcertSeatViewSet.as_view({'post': 'reserve'}), name='seat-reserve'),
+    path('booking/release/', ConcertSeatViewSet.as_view({'post': 'release'}), name='seat-release'),
 ]

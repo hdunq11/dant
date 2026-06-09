@@ -1,13 +1,10 @@
 import { useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { createXRStore, XR } from '@react-three/xr';
+import { XR } from '@react-three/xr';
 import type { Seat3D } from '../../utils/seatMap3D';
 import { computeVrFraming } from '../../utils/seatMap3D';
 import { VenueScene } from './VenueScene';
-
-export const xrStore = createXRStore({
-  emulate: typeof window !== 'undefined' && window.location.hostname === 'localhost',
-});
+import { xrStore } from './xrStore';
 
 interface VrExperienceProps {
   seats: Seat3D[];
@@ -33,6 +30,19 @@ export function VrExperience({
     [seats, modelPath]
   );
 
+  const scene = (
+    <VenueScene
+      seats={seats}
+      selectedIds={selectedIds}
+      previewSeatId={previewSeatId}
+      viewFromSeat={viewFromSeat}
+      modelPath={modelPath}
+      framing={framing}
+      onSelectSeat={onSelectSeat}
+      onPreviewSeat={onPreviewSeat}
+    />
+  );
+
   return (
     <Canvas
       shadows
@@ -42,18 +52,7 @@ export function VrExperience({
     >
       <color attach="background" args={['#020617']} />
       <fog attach="fog" args={['#020617', framing.fogNear, framing.fogFar]} />
-      <XR store={xrStore}>
-        <VenueScene
-          seats={seats}
-          selectedIds={selectedIds}
-          previewSeatId={previewSeatId}
-          viewFromSeat={viewFromSeat}
-          modelPath={modelPath}
-          framing={framing}
-          onSelectSeat={onSelectSeat}
-          onPreviewSeat={onPreviewSeat}
-        />
-      </XR>
+      <XR store={xrStore}>{scene}</XR>
     </Canvas>
   );
 }
