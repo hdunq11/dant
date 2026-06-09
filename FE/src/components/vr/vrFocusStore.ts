@@ -7,6 +7,8 @@ interface VrFocusState {
   clearFocus: () => void;
   exitSeatSelect: (() => void) | null;
   setExitSeatSelect: (handler: (() => void) | null) => void;
+  exitVr: (() => void) | null;
+  setExitVr: (handler: (() => void) | null) => void;
 }
 
 export const useVrFocusStore = create<VrFocusState>((set) => ({
@@ -15,4 +17,6 @@ export const useVrFocusStore = create<VrFocusState>((set) => ({
   clearFocus: () => set({ focusSeat: null }),
   exitSeatSelect: null,
   setExitSeatSelect: (handler) => set({ exitSeatSelect: handler }),
+  exitVr: null,
+  setExitVr: (handler) => set({ exitVr: handler }),
 }));

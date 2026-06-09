@@ -37,6 +37,7 @@ export function VrPreviewPage() {
   const setFocusSeat = useVrFocusStore((s) => s.setFocusSeat);
   const clearFocus = useVrFocusStore((s) => s.clearFocus);
   const setExitSeatSelect = useVrFocusStore((s) => s.setExitSeatSelect);
+  const setExitVr = useVrFocusStore((s) => s.setExitVr);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -166,6 +167,24 @@ export function VrPreviewPage() {
     setExitSeatSelect(exitSeatSelect);
     return () => setExitSeatSelect(null);
   }, [exitSeatSelect, setExitSeatSelect]);
+
+  const exitVr = useCallback(async () => {
+    const session = xrStore.getState().session;
+    if (!session) return;
+    clearFocus();
+    setPreviewSeatId(null);
+    setViewFromSeat(false);
+    try {
+      await session.end();
+    } catch (e) {
+      console.error('exit VR failed:', e);
+    }
+  }, [clearFocus]);
+
+  useEffect(() => {
+    setExitVr(exitVr);
+    return () => setExitVr(null);
+  }, [exitVr, setExitVr]);
 
   const handleSelectSeat = (seat: (typeof seats3D)[number]) => {
     if (seat.selectable === false) return;
@@ -322,7 +341,7 @@ export function VrPreviewPage() {
         <span>Double-click chọn ghế</span>
         <span>Desktop: kéo chuột · Q/E hoặc nút Xoay</span>
         {xrSupported ? (
-          <span className="vr-hint__note">VR: stick ngang xoay · snap 45° · nút ↺↻ trên màn hình</span>
+          <span className="vr-hint__note">VR: A thoát chọn ghế · B thoát VR · stick xoay/di chuyển</span>
         ) : (
           <span className="vr-hint__note">WebXR: Chrome + headset (Quest, v.v.)</span>
         )}
