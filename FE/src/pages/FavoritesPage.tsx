@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { concertApi } from '../api/concertApi';
 import { ConcertCard } from '../components/ConcertCard';
+import { EmptyState } from '../components/EmptyState';
 import { ProfileShell } from '../components/ProfileShell';
 import { Spinner } from '../components/Spinner';
 import { getApiErrorMessage } from '../context/AuthContext';
@@ -44,7 +45,12 @@ export function FavoritesPage() {
           ))}
         </div>
       ) : (
-        <p className="empty">Chưa có concert yêu thích.</p>
+        <EmptyState
+          icon="heart"
+          title="Danh sách yêu thích trống"
+          description="Nhấn ♥ trên concert bạn thích để lưu và đặt vé sau."
+          action={{ label: 'Khám phá concert', to: '/' }}
+        />
       )}
     </ProfileShell>
   );

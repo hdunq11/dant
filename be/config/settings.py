@@ -62,6 +62,8 @@ INSTALLED_APPS = [
     'app.seats',
     'app.orders',
     'app.behaviors',
+    'app.organizer',
+    'app.admin_panel',
 ]
 
 MIDDLEWARE = [
@@ -193,8 +195,8 @@ CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     'http://localhost:8000',
-    'http://192.168.1.150:5173',
-    'http://192.168.1.150:8000',
+    'http://172.20.10.3:5173',
+    'http://172.20.10.3:8000',
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -208,10 +210,8 @@ SIMPLE_JWT = {
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'
 
-# PayPal sandbox — https://developer.paypal.com/dashboard/applications/sandbox
 PAYPAL_CLIENT_ID = config('PAYPAL_CLIENT_ID', default='')
 PAYPAL_CLIENT_SECRET = config('PAYPAL_CLIENT_SECRET', default='')
 PAYPAL_MODE = config('PAYPAL_MODE', default='sandbox')
-# PayPal sandbox thường không hỗ trợ VND — dùng USD + quy đổi từ giá VND
 PAYPAL_CURRENCY = config('PAYPAL_CURRENCY', default='USD')
 PAYPAL_VND_PER_USD = config('PAYPAL_VND_PER_USD', default=25000, cast=int)

@@ -22,7 +22,18 @@ class ConcertViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = self.queryset
-        
+        user = self.request.user
+        is_staff = user.is_authenticated and (user.is_staff or getattr(user, 'role', '') == 'admin')
+        if not is_staff:
+            queryset = queryset.filter(status='published')
+
+        status_filter = self.request.query_params.get('status')
+        if status_filter and is_staff:
+            queryset = queryset.filter(status=status_filter)
+
+        event_source = self.request.query_params.get('event_source')
+        if event_source and is_staff:
+            queryset = queryset.filter(event_source=event_source)
         # Search by title
         search = self.request.query_params.get('search', '')
         if search:

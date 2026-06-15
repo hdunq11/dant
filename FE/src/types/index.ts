@@ -17,6 +17,7 @@ export interface Venue {
   address?: string;
   capacity?: number;
   model_glb_path?: string;
+  organizer?: string | null;
 }
 
 export interface Concert {
@@ -26,8 +27,22 @@ export interface Concert {
   start_time?: string;
   end_time?: string;
   banner_url?: string;
+  status?: string;
+  event_source?: string;
   venue?: Venue;
   concert_artists?: ConcertArtist[];
+}
+
+export interface OrganizerProfile {
+  id?: string;
+  company_name?: string;
+  business_license?: string;
+  contact_phone?: string;
+  status?: 'pending' | 'approved' | 'rejected';
+  rejection_reason?: string;
+  reviewed_at?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface User {
@@ -37,6 +52,7 @@ export interface User {
   avatar_url?: string;
   role?: string;
   is_staff?: boolean;
+  organizer_profile?: OrganizerProfile | null;
 }
 
 export interface LoginResponse {

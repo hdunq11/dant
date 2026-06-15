@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { adminApi } from '../../api/adminApi';
+import { EmptyState } from '../../components/EmptyState';
 import { getApiErrorMessage } from '../../context/AuthContext';
 import type { Order } from '../../types';
 import { formatDateTime, formatVnd } from '../../utils/format';
@@ -34,7 +35,7 @@ export function AdminOrdersPage() {
       <h1 className="page-title">Đơn hàng</h1>
       {error ? <div className="alert alert-error">{error}</div> : null}
       <div className="admin-card admin-table-wrap">
-        {loading ? <p>Đang tải...</p> : (
+        {loading ? <p>Đang tải...</p> : items.length ? (
           <table className="admin-table">
             <thead>
               <tr><th>ID</th><th>Concert</th><th>Tổng</th><th>Trạng thái</th><th>Ngày tạo</th></tr>
@@ -51,6 +52,13 @@ export function AdminOrdersPage() {
               ))}
             </tbody>
           </table>
+        ) : (
+          <EmptyState
+            compact
+            icon="order"
+            title="Chưa có đơn hàng"
+            description="Đơn đặt vé từ người dùng sẽ hiển thị tại đây."
+          />
         )}
       </div>
     </div>

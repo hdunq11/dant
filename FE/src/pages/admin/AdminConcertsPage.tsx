@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { adminApi } from '../../api/adminApi';
+import { EmptyState } from '../../components/EmptyState';
 import { getApiErrorMessage } from '../../context/AuthContext';
 import type { Artist, Concert, Venue } from '../../types';
 import { formatDateTime } from '../../utils/format';
+import { CONCERT_STATUS_LABEL, concertStatusClass } from './adminUtils';
 
 function toLocalInput(iso?: string) {
   if (!iso) return '';
@@ -32,7 +35,19 @@ const emptyForm = (): ConcertForm => ({
   artistIds: [],
 });
 
+const TABS = [
+  { id: '', label: 'Tất cả' },
+  { id: 'pending_review', label: 'Chờ duyệt' },
+  { id: 'approved', label: 'Đã duyệt' },
+  { id: 'published', label: 'Đang bán' },
+  { id: 'rejected', label: 'Từ chối' },
+  { id: 'draft', label: 'Nháp' },
+] as const;
+
 export function AdminConcertsPage() {
+  const [params, setParams] = useSearchParams();
+  const statusFilter = params.get('status') ?? '';
+
   const [items, setItems] = useState<Concert[]>([]);
   const [venues, setVenues] = useState<Venue[]>([]);
   const [artists, setArtists] = useState<Artist[]>([]);
@@ -45,7 +60,7 @@ export function AdminConcertsPage() {
     setLoading(true);
     try {
       const [c, v, a] = await Promise.all([
-        adminApi.getConcerts(),
+        adminApi.getConcerts(statusFilter ? { status: statusFilter } : undefined),
         adminApi.getVenues(),
         adminApi.getArtists(),
       ]);
@@ -57,9 +72,14 @@ export function AdminConcertsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [statusFilter]);
 
   useEffect(() => { load(); }, [load]);
+
+  const setStatusTab = (status: string) => {
+    if (status) setParams({ status });
+    else setParams({});
+  };
 
   const openEdit = (c: Concert) => {
     setForm({
@@ -86,6 +106,8 @@ export function AdminConcertsPage() {
         venue_id: form.venue_id,
         banner_url: form.banner_url,
         artists: form.artistIds,
+        event_source: 'internal',
+        status: 'published',
       };
       if (form.id) await adminApi.updateConcert(form.id, body);
       else await adminApi.createConcert(body);
@@ -117,24 +139,94 @@ export function AdminConcertsPage() {
     }
   };
 
+  const approve = async (id: string) => {
+    try {
+      await adminApi.approveConcert(id);
+      await load();
+    } catch (e) {
+      setError(getApiErrorMessage(e));
+    }
+  };
+
+  const reject = async (id: string) => {
+    try {
+      await adminApi.rejectConcert(id);
+      await load();
+    } catch (e) {
+      setError(getApiErrorMessage(e));
+    }
+  };
+
+  const publish = async (id: string) => {
+    try {
+      await adminApi.publishConcert(id);
+      await load();
+    } catch (e) {
+      setError(getApiErrorMessage(e));
+    }
+  };
+
   return (
     <div>
       <div className="admin-topbar">
-        <h1 className="page-title">Concert</h1>
-        <button type="button" className="btn btn-primary btn-sm" onClick={() => setForm(emptyForm())}>+ Thêm concert</button>
+        <h1 className="page-title">Concerts</h1>
+        <button type="button" className="btn btn-primary btn-sm" onClick={() => setForm(emptyForm())}>
+          + Concert nội bộ
+        </button>
       </div>
+      <p style={{ color: 'var(--text-secondary)', marginTop: 0 }}>
+        Duyệt concert do doanh nghiệp gửi lên hoặc tạo concert platform (internal).
+      </p>
       {error ? <div className="alert alert-error">{error}</div> : null}
+
+      <div className="admin-tabs">
+        {TABS.map((t) => (
+          <button
+            key={t.id || 'all'}
+            type="button"
+            className={statusFilter === t.id ? 'active' : ''}
+            onClick={() => setStatusTab(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       <div className="admin-card admin-table-wrap">
         {loading ? <p>Đang tải...</p> : (
           <table className="admin-table">
-            <thead><tr><th>Tiêu đề</th><th>Địa điểm</th><th>Thời gian</th><th></th></tr></thead>
+            <thead>
+              <tr>
+                <th>Tiêu đề</th>
+                <th>Nguồn</th>
+                <th>Địa điểm</th>
+                <th>Thời gian</th>
+                <th>Trạng thái</th>
+                <th></th>
+              </tr>
+            </thead>
             <tbody>
-              {items.slice(0, 40).map((c) => (
+              {items.map((c) => (
                 <tr key={c.id}>
                   <td>{c.title}</td>
+                  <td>{c.event_source === 'external' ? 'Đối tác' : 'Platform'}</td>
                   <td>{c.venue?.name}</td>
                   <td>{formatDateTime(c.start_time)}</td>
+                  <td>
+                    <span className={concertStatusClass(c.status)}>
+                      {CONCERT_STATUS_LABEL[c.status ?? 'draft'] ?? c.status}
+                    </span>
+                  </td>
                   <td className="admin-actions">
+                    {c.status === 'pending_review' && c.id ? (
+                      <>
+                        <button type="button" className="btn btn-primary btn-xs" onClick={() => approve(c.id!)}>Duyệt</button>
+                        <button type="button" className="btn btn-danger btn-xs" onClick={() => reject(c.id!)}>Từ chối</button>
+                      </>
+                    ) : null}
+                    {c.status === 'approved' && c.id ? (
+                      <button type="button" className="btn btn-primary btn-xs" onClick={() => publish(c.id!)}>Publish</button>
+                    ) : null}
                     <button type="button" className="btn btn-outline btn-xs" onClick={() => openEdit(c)}>Sửa</button>
                     <button type="button" className="btn btn-outline btn-xs" onClick={() => c.id && syncSeats(c.id)}>Sync ghế</button>
                     <button type="button" className="btn btn-danger btn-xs" onClick={() => c.id && remove(c.id)}>Xóa</button>
@@ -144,11 +236,21 @@ export function AdminConcertsPage() {
             </tbody>
           </table>
         )}
+        {!loading && !items.length ? (
+          <EmptyState
+            compact
+            icon="concert"
+            title="Chưa có concert"
+            description={statusFilter === 'pending_review' ? 'Không có concert nào đang chờ duyệt.' : 'Tạo concert nội bộ hoặc chờ đối tác gửi lên.'}
+            action={statusFilter ? undefined : { label: '+ Concert nội bộ', onClick: () => setForm(emptyForm()) }}
+          />
+        ) : null}
       </div>
+
       {form ? (
         <div className="admin-modal-backdrop" onClick={() => setForm(null)}>
           <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
-            <h2>{form.id ? 'Sửa concert' : 'Thêm concert'}</h2>
+            <h2>{form.id ? 'Sửa concert' : 'Tạo concert nội bộ'}</h2>
             <div className="admin-form">
               <label>Tiêu đề<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label>
               <label>Mô tả<textarea rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></label>

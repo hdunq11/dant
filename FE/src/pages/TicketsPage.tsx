@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { concertApi } from '../api/concertApi';
+import { EmptyState } from '../components/EmptyState';
 import { ProfileShell } from '../components/ProfileShell';
 import { Spinner } from '../components/Spinner';
 import { getApiErrorMessage } from '../context/AuthContext';
@@ -91,7 +92,12 @@ export function TicketsPage() {
           ))}
         </div>
       ) : (
-        <p className="empty">Chưa có vé nào. Hãy khám phá concert và đặt vé ngay!</p>
+        <EmptyState
+          icon="ticket"
+          title="Chưa có vé nào"
+          description="Khám phá concert yêu thích, chọn ghế và thanh toán — vé điện tử sẽ hiện tại đây."
+          action={{ label: 'Khám phá concert', to: '/' }}
+        />
       )}
     </ProfileShell>
   );

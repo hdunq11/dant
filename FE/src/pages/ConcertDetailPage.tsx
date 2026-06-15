@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { concertApi } from '../api/concertApi';
 import { ConcertCard } from '../components/ConcertCard';
+import { EmptyState } from '../components/EmptyState';
 import { Spinner } from '../components/Spinner';
 import { getApiErrorMessage, useAuth } from '../context/AuthContext';
 import type { Concert } from '../types';
 import { extractList } from '../utils/apiData';
 import { concertArtistsLabel, formatDateTime } from '../utils/format';
+import { IconCalendar, IconLocation } from '../components/fan/FanIcons';
 import './ConcertDetailPage.css';
 
 const PLACEHOLDER = 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=1200';
@@ -88,24 +90,47 @@ export function ConcertDetailPage() {
   const hasVr = !!concert?.venue?.model_glb_path;
 
   if (loading) return <Spinner />;
-  if (!concert) return <div className="container page"><p className="empty">{msg ?? 'Không tìm thấy concert.'}</p></div>;
+  if (!concert) {
+    return (
+      <div className="container page">
+        <EmptyState
+          icon="concert"
+          title="Không tìm thấy concert"
+          description={msg ?? 'Sự kiện có thể đã bị gỡ hoặc chưa được publish.'}
+          action={{ label: 'Về trang chủ', to: '/' }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="page detail-page">
       <div className="container">
         {msg ? <div className="alert alert-error">{msg}</div> : null}
         <div className="detail-hero card">
-          <img src={concert.banner_url || PLACEHOLDER} alt={concert.title} className="detail-hero__img" />
+          <div className="detail-hero__media">
+            <img src={concert.banner_url || PLACEHOLDER} alt={concert.title} className="detail-hero__img" />
+          </div>
           <div className="detail-hero__body">
             <h1>{concert.title}</h1>
-            <p className="detail-meta">{concertArtistsLabel(concert)}</p>
-            <p className="detail-meta">{formatDateTime(concert.start_time)}</p>
-            <p className="detail-venue">
-              {concert.venue?.name} · {concert.venue?.city}
-            </p>
-            <p className="detail-desc">{concert.description || 'Sự kiện âm nhạc đặc sắc.'}</p>
+            <div className="detail-meta-row">
+              <span className="detail-pill">{concertArtistsLabel(concert)}</span>
+              <span className="detail-pill">
+                <IconCalendar />
+                {formatDateTime(concert.start_time)}
+              </span>
+              <span className="detail-pill">
+                <IconLocation />
+                {concert.venue?.name} · {concert.venue?.city}
+              </span>
+            </div>
+            <p className="detail-desc">{concert.description || 'Sự kiện âm nhạc đặc sắc — đặt vé ngay để không bỏ lỡ.'}</p>
             <div className="detail-actions">
-              <button type="button" className="btn btn-outline" onClick={toggleFavorite}>
+              <button
+                type="button"
+                className={`btn btn-outline ${isFavorite ? 'is-fav' : ''}`}
+                onClick={toggleFavorite}
+              >
                 {isFavorite ? '♥ Đã yêu thích' : '♡ Thêm yêu thích'}
               </button>
               {hasVr ? (

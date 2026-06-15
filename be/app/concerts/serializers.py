@@ -22,6 +22,7 @@ class ConcertSerializer(serializers.ModelSerializer):
         write_only=True,
     )
     concert_artists = ConcertArtistSerializer(read_only=True, many=True)
+    organizer = serializers.PrimaryKeyRelatedField(read_only=True)
     artists = serializers.PrimaryKeyRelatedField(
         write_only=True,
         queryset=Artist.objects.all(),
@@ -34,9 +35,10 @@ class ConcertSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'title', 'description', 'start_time', 'end_time',
             'venue', 'venue_id', 'banner_url', 'concert_artists', 'artists',
+            'status', 'event_source', 'organizer',
             'created_at', 'updated_at',
         )
-        read_only_fields = ('id', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'organizer', 'created_at', 'updated_at')
 
     def create(self, validated_data):
         artists = validated_data.pop('artists', [])

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { adminApi } from '../../api/adminApi';
+import { EmptyState } from '../../components/EmptyState';
 import { getApiErrorMessage } from '../../context/AuthContext';
 import type { Venue } from '../../types';
 
@@ -59,7 +60,7 @@ export function AdminVenuesPage() {
       </div>
       {error ? <div className="alert alert-error">{error}</div> : null}
       <div className="admin-card admin-table-wrap">
-        {loading ? <p>Đang tải...</p> : (
+        {loading ? <p>Đang tải...</p> : items.length ? (
           <table className="admin-table">
             <thead><tr><th>Tên</th><th>Thành phố</th><th>Sức chứa</th><th>Model VR</th><th></th></tr></thead>
             <tbody>
@@ -77,6 +78,14 @@ export function AdminVenuesPage() {
               ))}
             </tbody>
           </table>
+        ) : (
+          <EmptyState
+            compact
+            icon="venue"
+            title="Chưa có địa điểm"
+            description="Thêm venue để gắn concert và cấu hình sơ đồ ghế VR."
+            action={{ label: '+ Thêm địa điểm', onClick: () => setForm({ ...empty }) }}
+          />
         )}
       </div>
       {form ? (

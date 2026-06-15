@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { concertApi } from '../api/concertApi';
 import { ConcertCard } from '../components/ConcertCard';
+import { EmptyState } from '../components/EmptyState';
 import { Spinner } from '../components/Spinner';
 import { getApiErrorMessage } from '../context/AuthContext';
 import type { Concert } from '../types';
@@ -46,8 +47,9 @@ export function HomePage() {
       <div className="container">
         <section className="hero">
           <div>
+            <span className="hero__eyebrow">ConcertVR Platform</span>
             <h1 className="hero__title">Đặt vé concert dễ dàng</h1>
-            <p className="hero__sub">Khám phá sự kiện, chọn ghế và thanh toán an toàn trên web.</p>
+            <p className="hero__sub">Khám phá sự kiện hot, chọn ghế trực quan và trải nghiệm xem trước 3D/VR trước khi mua.</p>
           </div>
           <form
             className="search-bar"
@@ -107,7 +109,10 @@ export function HomePage() {
           <>
             {recommended.length > 0 && (
               <section className="section">
-                <h2 className="section-title">Gợi ý cho bạn</h2>
+                <div className="section-header">
+                  <h2 className="section-title">Gợi ý cho bạn</h2>
+                  <span className="section-badge">Đề xuất</span>
+                </div>
                 <div className="grid-concerts">
                   {recommended.slice(0, 3).map((c) => (
                     <ConcertCard key={c.id} concert={c} badge="Đề xuất" />
@@ -124,7 +129,12 @@ export function HomePage() {
                   ))}
                 </div>
               ) : (
-                <p className="empty">Không có concert phù hợp.</p>
+                <EmptyState
+                  icon="search"
+                  title="Không tìm thấy sự kiện"
+                  description="Thử đổi bộ lọc thành phố, thể loại hoặc từ khóa tìm kiếm khác."
+                  action={{ label: 'Xem tất cả', onClick: () => { setSearch(''); setCity('Tất cả'); setGenre('Tất cả'); } }}
+                />
               )}
             </section>
           </>

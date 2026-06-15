@@ -13,16 +13,22 @@ import type {
   VoucherValidateResponse,
 } from '../types';
 
+export interface RegisterPayload {
+  email: string;
+  password: string;
+  password_confirm: string;
+  full_name: string;
+  register_as_organizer?: boolean;
+  company_name?: string;
+  business_license?: string;
+  contact_phone?: string;
+}
+
 export const concertApi = {
   login: (email: string, password: string) =>
     api.post<LoginResponse>('api/users/auth/login/', { email, password }),
 
-  register: (body: {
-    email: string;
-    password: string;
-    password_confirm: string;
-    full_name: string;
-  }) => api.post<User>('api/users/auth/register/', body),
+  register: (body: RegisterPayload) => api.post<User>('api/users/auth/register/', body),
 
   getMe: () => api.get<User>('api/users/me/'),
 

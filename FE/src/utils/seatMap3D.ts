@@ -225,6 +225,38 @@ export function seatViewPosition(seat: Seat3D): [number, number, number] {
   return [seat.position[0], seat.position[1] + 0.75, seat.position[2]];
 }
 
+/** Nhãn ghế hiển thị trên tấm bìa — ví dụ A12 */
+export function seatLabel(seat: Seat3D): string {
+  const row = seat.row?.trim();
+  const num = seat.number;
+  if (row && num) return `${row}${num}`;
+  if (row) return row;
+  if (num) return String(num);
+  return '?';
+}
+
+/** Vị trí + hướng tấm bìa dán sau lưng ghế (hướng về phía khán giả) */
+export function seatTagPose(seat: Seat3D): {
+  position: [number, number, number];
+  rotationY: number;
+} {
+  const [sx, sy, sz] = seat.position;
+  const [tx, , tz] = STAGE_CENTER;
+  const dx = sx - tx;
+  const dz = sz - tz;
+  const len = Math.hypot(dx, dz) || 1;
+  const ux = dx / len;
+  const uz = dz / len;
+  const backOffset = 0.3;
+  const heightOffset = 0.44;
+  const px = sx + ux * backOffset;
+  const pz = sz + uz * backOffset;
+  return {
+    position: [px, sy + heightOffset, pz],
+    rotationY: yawToward(px, pz, sx + ux * 2, sz + uz * 2),
+  };
+}
+
 /** Vị trí XROrigin (chân người) khi ngồi ghế, quay mặt về sân khấu */
 export function computeSeatOriginPose(
   seat: Seat3D,

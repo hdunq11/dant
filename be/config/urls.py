@@ -34,6 +34,8 @@ urlpatterns = [
     path('api/seats/', include('app.seats.urls')),
     path('api/orders/', include('app.orders.urls')),
     path('api/behaviors/', include('app.behaviors.urls')),
+    path('api/organizer/', include('app.organizer.urls')),
+    path('api/admin/', include('app.admin_panel.urls')),
     
     # Token refresh
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token-refresh'),

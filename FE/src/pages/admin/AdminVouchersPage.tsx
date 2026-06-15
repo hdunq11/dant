@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { adminApi, type Voucher } from '../../api/adminApi';
+import { EmptyState } from '../../components/EmptyState';
 import { getApiErrorMessage } from '../../context/AuthContext';
 
 const empty: Voucher = { code: '', discount_percent: 10, description: '', is_active: true };
@@ -59,7 +60,7 @@ export function AdminVouchersPage() {
       </div>
       {error ? <div className="alert alert-error">{error}</div> : null}
       <div className="admin-card admin-table-wrap">
-        {loading ? <p>Đang tải...</p> : (
+        {loading ? <p>Đang tải...</p> : items.length ? (
           <table className="admin-table">
             <thead><tr><th>Mã</th><th>Giảm %</th><th>Mô tả</th><th>Active</th><th></th></tr></thead>
             <tbody>
@@ -77,6 +78,14 @@ export function AdminVouchersPage() {
               ))}
             </tbody>
           </table>
+        ) : (
+          <EmptyState
+            compact
+            icon="voucher"
+            title="Chưa có voucher"
+            description="Tạo mã giảm giá để khuyến mãi cho người mua vé."
+            action={{ label: '+ Thêm voucher', onClick: () => setForm({ ...empty }) }}
+          />
         )}
       </div>
       {form ? (

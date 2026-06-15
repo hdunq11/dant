@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from django.conf import settings
 
 
 class Venue(models.Model):
@@ -8,6 +9,13 @@ class Venue(models.Model):
     city = models.CharField(max_length=100)
     address = models.TextField()
     capacity = models.IntegerField()
+    organizer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='owned_venues',
+    )
     model_glb_path = models.CharField(
         max_length=500,
         blank=True,

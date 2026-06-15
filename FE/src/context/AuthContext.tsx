@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { concertApi } from '../api/concertApi';
+import { concertApi, type RegisterPayload } from '../api/concertApi';
 import { clearStoredTokens, getApiErrorMessage, getStoredTokens, setStoredTokens } from '../api/client';
 import type { User } from '../types';
 
@@ -8,8 +8,10 @@ interface AuthContextValue {
   isLoading: boolean;
   isAuthenticated: boolean;
   isAdmin: boolean;
+  isOrganizer: boolean;
+  isOrganizerApproved: boolean;
   login: (email: string, password: string) => Promise<User>;
-  register: (email: string, password: string, fullName: string) => Promise<void>;
+  register: (payload: RegisterPayload) => Promise<User>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -47,14 +49,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const register = useCallback(
-    async (email: string, password: string, fullName: string) => {
-      await concertApi.register({
-        email: email.trim(),
-        password,
-        password_confirm: password,
-        full_name: fullName.trim(),
+    async (payload: RegisterPayload) => {
+      const res = await concertApi.register({
+        ...payload,
+        email: payload.email.trim(),
+        full_name: payload.full_name.trim(),
       });
-      await login(email, password);
+      await login(payload.email, payload.password);
+      return res.data;
     },
     [login]
   );
@@ -65,6 +67,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const isAdmin = !!user && (user.role === 'admin' || user.is_staff === true);
+  const isOrganizer = !!user && (user.role === 'organizer' || !!user.organizer_profile);
+  const isOrganizerApproved = isOrganizer && user?.organizer_profile?.status === 'approved';
 
   const value = useMemo(
     () => ({
@@ -72,12 +76,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isLoading,
       isAuthenticated: !!user,
       isAdmin,
+      isOrganizer,
+      isOrganizerApproved,
       login,
       register,
       logout,
       refreshUser,
     }),
-    [user, isLoading, isAdmin, login, register, logout, refreshUser]
+    [user, isLoading, isAdmin, isOrganizer, isOrganizerApproved, login, register, logout, refreshUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

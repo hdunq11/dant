@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { Artist, Concert, Order, PaginatedResponse, Venue } from '../types';
+import type { Artist, Concert, Order, OrganizerProfile, PaginatedResponse, User, Venue } from '../types';
 
 export interface Voucher {
   id?: string;
@@ -25,9 +25,62 @@ export interface ConcertWrite {
   venue_id: string;
   banner_url?: string;
   artists?: string[];
+  status?: string;
+  event_source?: string;
+}
+
+export interface AdminDashboard {
+  users_total: number;
+  organizers_pending: number;
+  concerts_pending_review: number;
+  concerts_published: number;
+  venues_total: number;
+  orders_total: number;
+  orders_paid: number;
+  revenue_total: number;
+  vouchers_active: number;
+}
+
+export interface AdminReports {
+  orders_by_status: Record<string, number>;
+  concerts_by_status: Record<string, number>;
+  organizers_by_status: Record<string, number>;
+  users_by_role: Record<string, number>;
+  top_concerts: Array<{
+    concert_id: string;
+    title: string;
+    status: string;
+    event_source: string;
+    orders: number;
+    revenue: number;
+    tickets_sold: number;
+  }>;
+}
+
+export interface AdminUser extends User {
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  organizer_profile?: OrganizerProfile | null;
 }
 
 export const adminApi = {
+  getDashboard: () => api.get<AdminDashboard>('api/admin/dashboard/'),
+  getReports: () => api.get<AdminReports>('api/admin/reports/'),
+
+  getUsers: (params?: { role?: string; organizer_status?: string; search?: string }) =>
+    api.get<AdminUser[]>('api/admin/users/', { params }),
+  updateUser: (id: string, body: Partial<AdminUser>) => api.patch<AdminUser>(`api/admin/users/${id}/`, body),
+  deleteUser: (id: string) => api.delete(`api/admin/users/${id}/`),
+
+  approveOrganizer: (profileId: string) => api.post<AdminUser>(`api/admin/organizers/${profileId}/approve/`),
+  rejectOrganizer: (profileId: string, rejection_reason?: string) =>
+    api.post<AdminUser>(`api/admin/organizers/${profileId}/reject/`, { rejection_reason }),
+
+  approveConcert: (id: string) => api.post<Concert>(`api/admin/concerts/${id}/approve/`),
+  rejectConcert: (id: string) => api.post<Concert>(`api/admin/concerts/${id}/reject/`),
+  publishConcert: (id: string) => api.post<Concert>(`api/admin/concerts/${id}/publish/`),
+
   getArtists: () => api.get<PaginatedResponse<Artist>>('api/artists/artists/'),
   createArtist: (body: Partial<Artist>) => api.post<Artist>('api/artists/artists/', body),
   updateArtist: (id: string, body: Partial<Artist>) => api.put<Artist>(`api/artists/artists/${id}/`, body),
@@ -38,10 +91,11 @@ export const adminApi = {
   updateVenue: (id: string, body: Partial<Venue>) => api.put<Venue>(`api/venues/venues/${id}/`, body),
   deleteVenue: (id: string) => api.delete(`api/venues/venues/${id}/`),
 
-  getConcerts: () => api.get<PaginatedResponse<Concert>>('api/concerts/concerts/'),
+  getConcerts: (params?: { status?: string; event_source?: string }) =>
+    api.get<PaginatedResponse<Concert>>('api/concerts/concerts/', { params }),
   createConcert: (body: ConcertWrite) => api.post<Concert>('api/concerts/concerts/', body),
   updateConcert: (id: string, body: Partial<ConcertWrite>) =>
-    api.put<Concert>(`api/concerts/concerts/${id}/`, body),
+    api.patch<Concert>(`api/concerts/concerts/${id}/`, body),
   deleteConcert: (id: string) => api.delete(`api/concerts/concerts/${id}/`),
   syncConcertSeats: (id: string) => api.post(`api/concerts/concerts/${id}/sync_seats/`),
 
