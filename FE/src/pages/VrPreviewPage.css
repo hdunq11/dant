@@ -91,7 +91,23 @@
   left: 16px;
   right: 16px;
   z-index: 12;
-  max-width: 420px;
+  max-width: 480px;
+  pointer-events: auto;
+}
+
+.vr-alert--warn {
+  background: rgba(254, 243, 199, 0.95);
+  color: #92400e;
+  border: 1px solid #fcd34d;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.vr-alert--warn code {
+  font-size: 0.78rem;
+  background: rgba(0, 0, 0, 0.06);
+  padding: 1px 5px;
+  border-radius: 4px;
 }
 
 .vr-rotate-pad {

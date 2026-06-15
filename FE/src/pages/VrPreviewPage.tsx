@@ -10,7 +10,7 @@ import { getApiErrorMessage } from '../context/AuthContext';
 import type { CheckoutState, Concert, SeatMapZone, SelectedSeatDetail } from '../types';
 import { formatDateTime, formatVnd } from '../utils/format';
 import { preloadVenueModel } from '../components/vr/VenueModel';
-import { mapZonesTo3D } from '../utils/seatMap3D';
+import { mapZonesTo3D, countGltfSeatsInZones, countSeatsInZones } from '../utils/seatMap3D';
 import './VrPreviewPage.css';
 
 interface VrLocationState {
@@ -109,7 +109,14 @@ export function VrPreviewPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const seats3D = useMemo(() => mapZonesTo3D(zones), [zones]);
+  const hasVenueModel = !!concert?.venue?.model_glb_path;
+  const seats3D = useMemo(
+    () => mapZonesTo3D(zones, { onlyGltfCoords: hasVenueModel }),
+    [zones, hasVenueModel]
+  );
+  const totalSeatCount = useMemo(() => countSeatsInZones(zones), [zones]);
+  const gltfSeatCount = useMemo(() => countGltfSeatsInZones(zones), [zones]);
+  const missingGltfCoords = hasVenueModel && gltfSeatCount < totalSeatCount;
   const selectedIds = useMemo(() => new Set(selected.map((s) => s.seatId)), [selected]);
   const subtotal = selected.reduce((s, x) => s + x.price, 0);
 
@@ -326,6 +333,17 @@ export function VrPreviewPage() {
       </header>
 
       {error ? <div className="alert alert-error vr-alert">{error}</div> : null}
+      {missingGltfCoords ? (
+        <div className="alert vr-alert vr-alert--warn">
+          {gltfSeatCount}/{totalSeatCount} ghế có tọa độ 3D — chỉ hiện nhãn tại ghế đã import GLTF.
+          Chạy <code>import_seats_from_gltf</code> để map đúng vị trí ghế trong model.
+        </div>
+      ) : null}
+      {hasVenueModel && seats3D.length === 0 && !loading ? (
+        <div className="alert vr-alert vr-alert--warn">
+          Chưa có ghế nào được map vào model 3D. Admin cần import tọa độ từ file GLTF của venue.
+        </div>
+      ) : null}
 
       <div className="vr-rotate-pad" aria-label="Xoay góc nhìn">
         <button type="button" className="vr-rotate-pad__btn" onClick={snapTurnLeft} title="Xoay trái (Q)">

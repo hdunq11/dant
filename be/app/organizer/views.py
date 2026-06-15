@@ -10,6 +10,12 @@ from app.concerts.models import Concert
 from app.orders.models import Order, OrderItem
 from app.seats.models import ConcertSeat, Seat, SeatZone
 from app.seats.reservation import release_expired_reservations, serialize_map_seat
+from app.seats.seat_grid import (
+    DEFAULT_AISLE_AFTER,
+    DEFAULT_SEATS_PER_ROW,
+    default_row_labels,
+    seat_pos_2d,
+)
 from app.venues.models import Venue
 
 from .permissions import IsApprovedOrganizer
@@ -206,18 +212,20 @@ class OrganizerSeatZoneViewSet(viewsets.ModelViewSet):
         zone = self.get_object()
         if zone.venue.organizer_id != request.user.id:
             return Response({'error': 'Không có quyền.'}, status=403)
-        rows = request.data.get('rows', [])
-        seats_per_row = request.data.get('seats_per_row', 10)
+        rows = request.data.get('rows') or default_row_labels()
+        seats_per_row = int(request.data.get('seats_per_row', DEFAULT_SEATS_PER_ROW))
+        aisle_after = int(request.data.get('aisle_after', DEFAULT_AISLE_AFTER))
         seats = []
         for row_idx, row_label in enumerate(rows):
             for seat_num in range(1, seats_per_row + 1):
+                pos_x, pos_y = seat_pos_2d(row_idx, seat_num, aisle_after=aisle_after)
                 seat = Seat.objects.create(
                     venue=zone.venue,
                     zone=zone,
                     row_label=row_label,
                     seat_number=seat_num,
-                    pos_x=seat_num * 10.0,
-                    pos_y=row_idx * 10.0,
+                    pos_x=pos_x,
+                    pos_y=pos_y,
                 )
                 seats.append(seat)
         return Response({'message': f'Đã sinh {len(seats)} ghế', 'count': len(seats)}, status=201)

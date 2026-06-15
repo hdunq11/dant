@@ -1,6 +1,5 @@
 import type { SeatMapSeat, SeatMapZone } from '../types';
-
-/** Tâm sân khấu trong model Sketchfab venue_stage_1 */
+import { globalSeatNumber } from './seatGrid';
 export const STAGE_CENTER: [number, number, number] = [0, 0.45, -3.2];
 /** Điểm nhìn khi ngồi ghế — ngang tầm mắt, hướng sân khấu */
 export const STAGE_LOOK_AT: [number, number, number] = [0, 1.1, -3.2];
@@ -160,7 +159,26 @@ function seatCoord2D(seat: NonNullable<SeatMapZone['seats']>[number], index: num
 }
 
 /** Chuyển tọa độ API sang không gian 3D. Nếu có pos_z (từ GLTF) dùng trực tiếp. */
-export function mapZonesTo3D(zones: SeatMapZone[]): Seat3D[] {
+export interface MapZonesTo3DOptions {
+  /** Chỉ lấy ghế đã import tọa độ 3D từ GLTF — bỏ lưới 2D giả khi có model venue */
+  onlyGltfCoords?: boolean;
+}
+
+function dedupeSeatsByPosition(seats: Seat3D[]): Seat3D[] {
+  const seen = new Set<string>();
+  const out: Seat3D[] = [];
+  for (const seat of seats) {
+    const [x, , z] = seat.position;
+    const key = `${x.toFixed(2)}|${z.toFixed(2)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(seat);
+  }
+  return out;
+}
+
+export function mapZonesTo3D(zones: SeatMapZone[], options?: MapZonesTo3DOptions): Seat3D[] {
+  const onlyGltf = options?.onlyGltfCoords ?? false;
   const seats: Seat3D[] = [];
   let minX = Infinity;
   let minY = Infinity;
@@ -189,18 +207,25 @@ export function mapZonesTo3D(zones: SeatMapZone[]): Seat3D[] {
 
   for (const item of raw) {
     const { seat, zone, zoneIndex, coord } = item;
+
+    if (onlyGltf && !isGltfSeatCoords(seat)) {
+      continue;
+    }
+
     let position: [number, number, number];
 
     if (isGltfSeatCoords(seat)) {
       position = [seat.pos_x!, seat.pos_z!, seat.pos_y!];
-    } else if (usesGltf) {
+    } else if (usesGltf && !onlyGltf) {
+      const nx = (coord.x - minX) / spanX;
+      const ny = (coord.y - minY) / spanY;
+      position = [(nx - 0.5) * arenaW, 0.35 + zoneIndex * 0.08, 4 + ny * arenaD];
+    } else if (!onlyGltf) {
       const nx = (coord.x - minX) / spanX;
       const ny = (coord.y - minY) / spanY;
       position = [(nx - 0.5) * arenaW, 0.35 + zoneIndex * 0.08, 4 + ny * arenaD];
     } else {
-      const nx = (coord.x - minX) / spanX;
-      const ny = (coord.y - minY) / spanY;
-      position = [(nx - 0.5) * arenaW, 0.35 + zoneIndex * 0.08, 4 + ny * arenaD];
+      continue;
     }
 
     seats.push({
@@ -218,15 +243,17 @@ export function mapZonesTo3D(zones: SeatMapZone[]): Seat3D[] {
     });
   }
 
-  return seats;
+  return options?.onlyGltfCoords ? dedupeSeatsByPosition(seats) : seats;
 }
 
 export function seatViewPosition(seat: Seat3D): [number, number, number] {
   return [seat.position[0], seat.position[1] + 0.75, seat.position[2]];
 }
 
-/** Nhãn ghế hiển thị trên tấm bìa — ví dụ A12 */
+/** Nhãn ghế trên tấm bìa VR — số liên tục 1..336 theo layout hội trường */
 export function seatLabel(seat: Seat3D): string {
+  const global = globalSeatNumber(seat.row, seat.number);
+  if (global != null) return String(global);
   const row = seat.row?.trim();
   const num = seat.number;
   if (row && num) return `${row}${num}`;
@@ -238,7 +265,7 @@ export function seatLabel(seat: Seat3D): string {
 /** Vị trí + hướng tấm bìa dán sau lưng ghế (hướng về phía khán giả) */
 export function seatTagPose(seat: Seat3D): {
   position: [number, number, number];
-  rotationY: number;
+  rotation: [number, number, number];
 } {
   const [sx, sy, sz] = seat.position;
   const [tx, , tz] = STAGE_CENTER;
@@ -247,17 +274,31 @@ export function seatTagPose(seat: Seat3D): {
   const len = Math.hypot(dx, dz) || 1;
   const ux = dx / len;
   const uz = dz / len;
-  const backOffset = 0.3;
-  const heightOffset = 0.44;
+  // Dán sát mặt lưng ghế — hướng ra phía khán giả (xa sân khấu)
+  const backOffset = 0.06;
+  const heightOffset = 0.26;
   const px = sx + ux * backOffset;
   const pz = sz + uz * backOffset;
+  const py = sy + heightOffset;
+  const rotationY = yawToward(px, pz, sx + ux * 1.2, sz + uz * 1.2);
+  const tiltBack = 0.18;
   return {
-    position: [px, sy + heightOffset, pz],
-    rotationY: yawToward(px, pz, sx + ux * 2, sz + uz * 2),
+    position: [px, py, pz],
+    rotation: [-tiltBack, rotationY, 0],
   };
 }
 
-/** Vị trí XROrigin (chân người) khi ngồi ghế, quay mặt về sân khấu */
+export function countSeatsInZones(zones: SeatMapZone[]): number {
+  return zones.reduce((n, z) => n + (z.seats?.length ?? 0), 0);
+}
+
+export function countGltfSeatsInZones(zones: SeatMapZone[]): number {
+  return zones.reduce(
+    (n, z) => n + (z.seats?.filter((s) => isGltfSeatCoords(s)).length ?? 0),
+    0
+  );
+}
+
 export function computeSeatOriginPose(
   seat: Seat3D,
   floorY = 0

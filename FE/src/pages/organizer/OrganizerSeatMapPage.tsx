@@ -7,6 +7,7 @@ import { PageHeader } from '../../components/portal/PageHeader';
 import { getApiErrorMessage } from '../../context/AuthContext';
 import type { Venue } from '../../types';
 import { formatVnd } from '../../utils/format';
+import { VENUE_DEFAULT_ROWS, VENUE_SEATS_PER_ROW } from '../../utils/seatGrid';
 
 const empty: SeatZone = { name: '', price: 250000, color: '#5b4dff', venue_id: '' };
 
@@ -19,8 +20,8 @@ export function OrganizerSeatMapPage() {
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<SeatZone | null>(null);
   const [genZone, setGenZone] = useState<SeatZone | null>(null);
-  const [rows, setRows] = useState('A,B,C,D,E');
-  const [seatsPerRow, setSeatsPerRow] = useState(10);
+  const [rows, setRows] = useState(VENUE_DEFAULT_ROWS);
+  const [seatsPerRow, setSeatsPerRow] = useState(VENUE_SEATS_PER_ROW);
   const [saving, setSaving] = useState(false);
 
   const loadVenues = useCallback(async () => {
@@ -196,9 +197,12 @@ export function OrganizerSeatMapPage() {
         <div className="admin-modal-backdrop" onClick={() => setGenZone(null)}>
           <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
             <h2>Sinh ghế — {genZone.name}</h2>
+            <p style={{ margin: '0 0 14px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              Mặc định: 12 hàng (A–L) × 28 ghế/hàng (14 trái + lối đi + 14 phải).
+            </p>
             <div className="admin-form">
               <label>Hàng (cách nhau dấu phẩy)<input value={rows} onChange={(e) => setRows(e.target.value)} /></label>
-              <label>Ghế mỗi hàng<input type="number" value={seatsPerRow} onChange={(e) => setSeatsPerRow(Number(e.target.value))} /></label>
+              <label>Ghế mỗi hàng (28 = 14+14)<input type="number" value={seatsPerRow} onChange={(e) => setSeatsPerRow(Number(e.target.value))} /></label>
             </div>
             <div className="admin-modal__actions">
               <button type="button" className="btn btn-primary" onClick={generate}>Sinh ghế</button>

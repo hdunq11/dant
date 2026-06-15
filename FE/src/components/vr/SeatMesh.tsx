@@ -26,7 +26,7 @@ export function SeatMesh({ seat, selected, previewing, onSelect, onPreview }: Se
   const [hovered, setHovered] = useState(false);
   const disabled = seat.selectable === false;
   const accent = accentColor(seat, selected, previewing, hovered);
-  const { position, rotationY } = seatTagPose(seat);
+  const { position, rotation } = seatTagPose(seat);
   const label = seatLabel(seat);
   const highlight = selected || previewing;
   const scale = highlight ? 1.12 : hovered ? 1.06 : 1;
@@ -44,7 +44,7 @@ export function SeatMesh({ seat, selected, previewing, onSelect, onPreview }: Se
   };
 
   return (
-    <group position={position} rotation={[0, rotationY, 0]} scale={scale}>
+    <group position={position} rotation={rotation} scale={scale}>
       <mesh position={[0, 0, -0.004]}>
         <planeGeometry args={[0.36, 0.26]} />
         <meshStandardMaterial color={accent} roughness={0.85} side={DoubleSide} />

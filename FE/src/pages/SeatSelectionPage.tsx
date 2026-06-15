@@ -192,12 +192,10 @@ export function SeatSelectionPage() {
               >
                 <div className="arena-stage">Sân khấu</div>
 
-                {zoneLayouts.map((layout) => {
-                  const isActive = !activeZoneId || layout.zoneId === activeZoneId;
-                  return (
+                {zoneLayouts.map((layout) => (
                     <div
                       key={layout.zoneId}
-                      className={`zone-block ${isActive ? 'zone-block--active' : 'zone-block--dim'}`}
+                      className="zone-block zone-block--active"
                       style={{
                         left: layout.x,
                         top: layout.y,
@@ -206,23 +204,30 @@ export function SeatSelectionPage() {
                         transform: `rotate(${layout.rotate}deg)`,
                       }}
                     >
-                      <span className="zone-block__label">{layout.zoneName}</span>
+                      {!layout.auditorium ? (
+                        <span className="zone-block__label">{layout.zoneName}</span>
+                      ) : null}
                       <div className="zone-block__seats">
                         {layout.seats.map((seat) => {
                           const picked = selected.some((s) => s.seatId === seat.seatId);
+                          const zoneMatch = !activeZoneId || seat.zoneId === activeZoneId;
+                          const label =
+                            seat.globalNumber != null
+                              ? `#${seat.globalNumber}`
+                              : `${seat.row}${seat.number}`;
                           return (
                             <button
                               key={seat.seatId}
                               type="button"
-                              title={`${layout.zoneName} · Hàng ${seat.row} · Ghế ${seat.number}`}
-                              className={seatClass(seat.status, picked, seat.reservedByMe)}
+                              title={`${seat.zoneName} · ${label}`}
+                              className={`${seatClass(seat.status, picked, seat.reservedByMe)}${zoneMatch ? '' : ' arena-seat--dim'}`}
                               style={{ left: seat.x - layout.x, top: seat.y - layout.y }}
                               onClick={() =>
                                 toggleSeat(
                                   {
-                                    zone_id: layout.zoneId,
-                                    name: layout.zoneName,
-                                    price: layout.price,
+                                    zone_id: seat.zoneId,
+                                    name: seat.zoneName,
+                                    price: seat.price,
                                   },
                                   seat.seatId,
                                   seat.row,
@@ -239,8 +244,7 @@ export function SeatSelectionPage() {
                         })}
                       </div>
                     </div>
-                  );
-                })}
+                  ))}
               </div>
             </div>
 

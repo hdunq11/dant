@@ -3,6 +3,12 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAdminUser, IsAuthenticated
 from .models import SeatZone, Seat, ConcertSeat
+from .seat_grid import (
+    DEFAULT_AISLE_AFTER,
+    DEFAULT_SEATS_PER_ROW,
+    default_row_labels,
+    seat_pos_2d,
+)
 from .serializers import SeatZoneSerializer, SeatSerializer
 from app.concerts.models import Concert
 from .reservation import (
@@ -32,19 +38,21 @@ class SeatZoneViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
     def generate_seats(self, request, pk=None):
         zone = self.get_object()
-        rows = request.data.get('rows', [])
-        seats_per_row = request.data.get('seats_per_row', 10)
+        rows = request.data.get('rows') or default_row_labels()
+        seats_per_row = int(request.data.get('seats_per_row', DEFAULT_SEATS_PER_ROW))
+        aisle_after = int(request.data.get('aisle_after', DEFAULT_AISLE_AFTER))
 
         seats = []
         for row_idx, row_label in enumerate(rows):
             for seat_num in range(1, seats_per_row + 1):
+                pos_x, pos_y = seat_pos_2d(row_idx, seat_num, aisle_after=aisle_after)
                 seat = Seat.objects.create(
                     venue=zone.venue,
                     zone=zone,
                     row_label=row_label,
                     seat_number=seat_num,
-                    pos_x=seat_num * 10.0,
-                    pos_y=row_idx * 10.0,
+                    pos_x=pos_x,
+                    pos_y=pos_y,
                 )
                 seats.append(seat)
 

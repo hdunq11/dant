@@ -39,7 +39,7 @@ const SeatTag = memo(function SeatTag({
   const [hovered, setHovered] = useState(false);
   const disabled = seat.selectable === false;
   const accent = accentColor(seat, selected, previewing, hovered);
-  const { position, rotationY } = seatTagPose(seat);
+  const { position, rotation } = seatTagPose(seat);
   const label = seatLabel(seat);
   const highlight = selected || previewing;
   const scale = highlight ? 1.12 : hovered ? 1.06 : 1;
@@ -51,10 +51,10 @@ const SeatTag = memo(function SeatTag({
   };
 
   return (
-    <group position={position} rotation={[0, rotationY, 0]} scale={scale}>
+    <group position={position} rotation={rotation} scale={scale}>
       {/* Khung tấm bìa — màu theo trạng thái */}
-      <mesh position={[0, 0, -0.004]} renderOrder={1}>
-        <planeGeometry args={[0.36, 0.26]} />
+      <mesh position={[0, 0, -0.003]} renderOrder={1}>
+        <planeGeometry args={[0.24, 0.17]} />
         <meshStandardMaterial color={accent} roughness={0.85} side={DoubleSide} />
       </mesh>
       {/* Mặt giấy bìa */}
@@ -68,7 +68,7 @@ const SeatTag = memo(function SeatTag({
         }}
         onPointerOut={() => setHovered(false)}
       >
-        <planeGeometry args={[0.33, 0.22]} />
+        <planeGeometry args={[0.22, 0.15]} />
         <meshStandardMaterial
           color={disabled ? '#e2e8f0' : '#faf3e0'}
           roughness={0.95}
@@ -81,7 +81,7 @@ const SeatTag = memo(function SeatTag({
       {/* Chữ số ghế */}
       <Text
         position={[0, 0, 0.008]}
-        fontSize={0.1}
+        fontSize={0.075}
         color={disabled ? '#94a3b8' : '#1e293b'}
         anchorX="center"
         anchorY="middle"

@@ -71,9 +71,13 @@ class ConcertViewSet(viewsets.ModelViewSet):
         serializer = VenueSerializer(concert.venue)
         return Response(serializer.data)
 
+    def _venue_concert_seats(self, concert):
+        return ConcertSeat.objects.filter(concert=concert, seat__venue=concert.venue)
+
     def _ensure_concert_seats(self, concert):
-        """Tự tạo concert_seats từ ghế venue nếu concert chưa có vé."""
-        if ConcertSeat.objects.filter(concert=concert).exists():
+        """Tự tạo concert_seats từ ghế venue; bỏ ghế lạ venue khác."""
+        ConcertSeat.objects.filter(concert=concert).exclude(seat__venue=concert.venue).delete()
+        if self._venue_concert_seats(concert).exists():
             return
         venue_seats = Seat.objects.filter(venue=concert.venue)
         ConcertSeat.objects.bulk_create(
@@ -93,8 +97,7 @@ class ConcertViewSet(viewsets.ModelViewSet):
 
         seatmap = []
         for zone in zones:
-            seats = ConcertSeat.objects.filter(
-                concert=concert,
+            seats = self._venue_concert_seats(concert).filter(
                 seat__zone=zone
             ).select_related('seat', 'reserved_by')
 
@@ -112,6 +115,7 @@ class ConcertViewSet(viewsets.ModelViewSet):
     def sync_seats(self, request, pk=None):
         """Tạo concert_seats từ toàn bộ ghế của venue (admin)."""
         concert = self.get_object()
+        removed = ConcertSeat.objects.filter(concert=concert).exclude(seat__venue=concert.venue).delete()[0]
         venue_seats = Seat.objects.filter(venue=concert.venue)
         created = 0
         for seat in venue_seats:
@@ -125,5 +129,6 @@ class ConcertViewSet(viewsets.ModelViewSet):
         return Response({
             'message': f'Đồng bộ ghế xong',
             'created': created,
-            'total': ConcertSeat.objects.filter(concert=concert).count(),
+            'removed_orphans': removed,
+            'total': self._venue_concert_seats(concert).count(),
         })

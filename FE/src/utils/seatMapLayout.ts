@@ -1,26 +1,22 @@
 import type { SeatMapSeat, SeatMapZone } from '../types';
 import { isGltfSeatCoords } from './seatMap3D';
+import { globalSeatNumber, seatPos2D, VENUE_ROW_COUNT, VENUE_SEATS_PER_ROW } from './seatGrid';
 
 const SEAT_STEP = 22;
 const PAD = 10;
 
-interface Slot {
-  cx: number;
-  cy: number;
-  maxW: number;
-  maxH: number;
-  rotate: number;
-}
-
 const CANVAS_W = 720;
 const STAGE_GAP = 48;
-const ZONE_GAP = 20;
 const MARGIN_X = 40;
 
 export interface LayoutSeat {
   seatId: string;
   row: string;
   number: number;
+  globalNumber: number | null;
+  zoneId: string;
+  zoneName: string;
+  price: number;
   status?: string;
   selectable?: boolean;
   reservedByMe?: boolean;
@@ -38,17 +34,107 @@ export interface ZoneLayout {
   height: number;
   rotate: number;
   seats: LayoutSeat[];
+  auditorium?: boolean;
 }
 
-function seatCoord(seat: SeatMapSeat, index: number, rowIndex: number) {
-  // Sau import GLTF, pos_x/pos_y là tọa độ 3D — dùng lưới row/number cho sơ đồ 2D
+function seatCoord(seat: SeatMapSeat, rowIdx: number) {
   if (!isGltfSeatCoords(seat) && seat.pos_x != null && seat.pos_y != null) {
     return { x: seat.pos_x, y: seat.pos_y };
   }
-  return { x: (seat.number ?? index + 1) * 10, y: rowIndex * 10 };
+  const num = seat.number ?? 1;
+  return seatPos2D(rowIdx, num);
 }
 
-function layoutOneZone(zone: SeatMapZone, slot: Slot, index: number): ZoneLayout | null {
+function isFullAuditorium(zones: SeatMapZone[]): boolean {
+  const rows = new Set<string>();
+  let total = 0;
+  for (const zone of zones) {
+    for (const seat of zone.seats ?? []) {
+      total += 1;
+      const row = seat.row?.trim().toUpperCase();
+      if (row) rows.add(row);
+    }
+  }
+  return total === VENUE_ROW_COUNT * VENUE_SEATS_PER_ROW && rows.size === VENUE_ROW_COUNT;
+}
+
+/** Một khán đài 12×28 — ghép mọi zone vào đúng vị trí hàng A–L (giống bảng Excel). */
+function layoutAuditorium(zones: SeatMapZone[]): { zoneLayouts: ZoneLayout[]; canvasW: number; canvasH: number } {
+  const raw: Array<{
+    seat: SeatMapSeat;
+    zone: SeatMapZone;
+    coord: { x: number; y: number };
+  }> = [];
+
+  for (const zone of zones) {
+    for (const seat of zone.seats ?? []) {
+      const row = (seat.row ?? 'A').trim().toUpperCase();
+      const global = globalSeatNumber(row, seat.number ?? 1);
+      const rowIdx = global != null ? Math.floor((global - 1) / VENUE_SEATS_PER_ROW) : 0;
+      raw.push({ seat, zone, coord: seatCoord(seat, rowIdx) });
+    }
+  }
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const item of raw) {
+    minX = Math.min(minX, item.coord.x);
+    minY = Math.min(minY, item.coord.y);
+    maxX = Math.max(maxX, item.coord.x);
+    maxY = Math.max(maxY, item.coord.y);
+  }
+
+  const rawW = Math.max(maxX - minX, 10) + SEAT_STEP;
+  const rawH = Math.max(maxY - minY, 10) + SEAT_STEP;
+  const maxW = CANVAS_W - MARGIN_X * 2;
+  const scale = Math.min(maxW / rawW, 320 / rawH, 1.35);
+  const blockW = rawW * scale;
+  const blockH = rawH * scale;
+  const originX = (CANVAS_W - blockW) / 2;
+  const originY = STAGE_GAP + 36;
+
+  const seats: LayoutSeat[] = raw.map(({ seat, zone, coord }) => {
+    const row = seat.row ?? '';
+    const num = seat.number ?? 0;
+    return {
+      seatId: seat.seat_id!,
+      row,
+      number: num,
+      globalNumber: globalSeatNumber(row, num),
+      zoneId: zone.zone_id!,
+      zoneName: zone.name ?? '',
+      price: zone.price ?? 0,
+      status: seat.status,
+      selectable: seat.selectable ?? (seat.status !== 'sold' && seat.status !== 'reserved'),
+      reservedByMe: seat.reserved_by_me,
+      x: originX + (coord.x - minX) * scale,
+      y: originY + (coord.y - minY) * scale,
+    };
+  });
+
+  const layout: ZoneLayout = {
+    zoneId: 'auditorium',
+    zoneName: 'Khán đài',
+    price: 0,
+    x: originX - PAD,
+    y: originY - PAD,
+    width: blockW + PAD * 2,
+    height: blockH + PAD * 2,
+    rotate: 0,
+    auditorium: true,
+    seats,
+  };
+
+  return {
+    zoneLayouts: [layout],
+    canvasW: CANVAS_W,
+    canvasH: Math.max(originY + blockH + PAD + 24, 400),
+  };
+}
+
+function layoutOneZone(zone: SeatMapZone, index: number): ZoneLayout | null {
   const rawSeats = zone.seats ?? [];
   if (!rawSeats.length) return null;
 
@@ -58,10 +144,12 @@ function layoutOneZone(zone: SeatMapZone, slot: Slot, index: number): ZoneLayout
   let maxX = -Infinity;
   let maxY = -Infinity;
 
-  const coords = rawSeats.map((seat, i) => {
+  const coords = rawSeats.map((seat) => {
     const row = seat.row ?? 'A';
     if (!rowIndex.has(row)) rowIndex.set(row, rowIndex.size);
-    const c = seatCoord(seat, i, rowIndex.get(row)!);
+    const global = globalSeatNumber(row, seat.number ?? 1);
+    const rowIdx = global != null ? Math.floor((global - 1) / VENUE_SEATS_PER_ROW) : rowIndex.get(row)!;
+    const c = seatCoord(seat, rowIdx);
     minX = Math.min(minX, c.x);
     minY = Math.min(minY, c.y);
     maxX = Math.max(maxX, c.x);
@@ -71,18 +159,25 @@ function layoutOneZone(zone: SeatMapZone, slot: Slot, index: number): ZoneLayout
 
   const rawW = Math.max(maxX - minX, 10) + SEAT_STEP;
   const rawH = Math.max(maxY - minY, 10) + SEAT_STEP;
-  const scale = Math.min(slot.maxW / rawW, slot.maxH / rawH, 1.35);
+  const maxW = CANVAS_W - MARGIN_X * 2;
+  const scale = Math.min(maxW / rawW, 160 / rawH, 1.35);
   const blockW = rawW * scale;
   const blockH = rawH * scale;
-  const originX = slot.cx - blockW / 2;
-  const originY = slot.cy - blockH / 2;
+  const originX = (CANVAS_W - blockW) / 2;
+  const originY = STAGE_GAP + index * (blockH + 20);
 
   const seats: LayoutSeat[] = rawSeats.map((seat, i) => {
+    const row = seat.row ?? '';
+    const num = seat.number ?? 0;
     const c = coords[i];
     return {
       seatId: seat.seat_id!,
-      row: seat.row ?? '',
-      number: seat.number ?? 0,
+      row,
+      number: num,
+      globalNumber: globalSeatNumber(row, num),
+      zoneId: zone.zone_id!,
+      zoneName: zone.name ?? '',
+      price: zone.price ?? 0,
       status: seat.status,
       selectable: seat.selectable ?? (seat.status !== 'sold' && seat.status !== 'reserved'),
       reservedByMe: seat.reserved_by_me,
@@ -99,40 +194,9 @@ function layoutOneZone(zone: SeatMapZone, slot: Slot, index: number): ZoneLayout
     y: originY - PAD,
     width: blockW + PAD * 2,
     height: blockH + PAD * 2,
-    rotate: slot.rotate,
+    rotate: 0,
     seats,
   };
-}
-
-function stackZonesVertically(zones: SeatMapZone[]): ZoneLayout[] {
-  const maxZoneW = CANVAS_W - MARGIN_X * 2;
-  let y = STAGE_GAP;
-  const zoneLayouts: ZoneLayout[] = [];
-
-  for (let i = 0; i < zones.length; i++) {
-    const layout = layoutOneZone(
-      zones[i],
-      { cx: CANVAS_W / 2, cy: y + 60, maxW: maxZoneW, maxH: 160, rotate: 0 },
-      i
-    );
-    if (!layout) continue;
-
-    const x = (CANVAS_W - layout.width) / 2;
-    const dx = x - layout.x;
-    const dy = y - layout.y;
-
-    zoneLayouts.push({
-      ...layout,
-      x,
-      y,
-      rotate: 0,
-      seats: layout.seats.map((s) => ({ ...s, x: s.x + dx, y: s.y + dy })),
-    });
-
-    y += layout.height + ZONE_GAP;
-  }
-
-  return zoneLayouts;
 }
 
 export function layoutSeatMapZones(zones: SeatMapZone[]): {
@@ -140,20 +204,27 @@ export function layoutSeatMapZones(zones: SeatMapZone[]): {
   canvasW: number;
   canvasH: number;
 } {
-  if (zones.length === 1) {
-    const single = layoutOneZone(
-      zones[0],
-      { cx: CANVAS_W / 2, cy: 200, maxW: CANVAS_W - 80, maxH: 280, rotate: 0 },
-      0
-    );
-    return { zoneLayouts: single ? [single] : [], canvasW: CANVAS_W, canvasH: 400 };
+  if (isFullAuditorium(zones)) {
+    return layoutAuditorium(zones);
   }
 
-  const zoneLayouts = stackZonesVertically(zones);
-  const canvasH = Math.max(
-    zoneLayouts.reduce((h, z) => Math.max(h, z.y + z.height), 0) + 24,
-    400
-  );
+  const zoneLayouts: ZoneLayout[] = [];
+  let y = STAGE_GAP;
+  for (let i = 0; i < zones.length; i++) {
+    const layout = layoutOneZone(zones[i], i);
+    if (!layout) continue;
+    const dy = y - layout.y;
+    zoneLayouts.push({
+      ...layout,
+      y,
+      seats: layout.seats.map((s) => ({ ...s, y: s.y + dy })),
+    });
+    y += layout.height + 20;
+  }
 
-  return { zoneLayouts, canvasW: CANVAS_W, canvasH };
+  return {
+    zoneLayouts,
+    canvasW: CANVAS_W,
+    canvasH: Math.max(y + 24, 400),
+  };
 }

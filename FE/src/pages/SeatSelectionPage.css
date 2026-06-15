@@ -188,6 +188,10 @@
   cursor: not-allowed;
 }
 
+.arena-seat--dim {
+  opacity: 0.35;
+}
+
 .arena-seat svg {
   display: block;
 }

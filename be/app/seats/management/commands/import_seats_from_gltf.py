@@ -66,6 +66,9 @@ class Command(BaseCommand):
         for venue in venues:
             self.stdout.write(f'\n=== {venue.name} ({venue.id}) ===')
             if mode == 'sketchfab':
+                from app.seats.gltf_import import build_full_auditorium_grid
+                physical = build_full_auditorium_grid(gltf_path)
+                self.stdout.write(f'Auditorium grid: {len(physical)} slots (12x28)')
                 zones = list(SeatZone.objects.filter(venue=venue).order_by('-price', 'name'))
                 zone_seats = []
                 for zone in zones:
@@ -90,6 +93,7 @@ class Command(BaseCommand):
 
     def _apply_markers(self, venue: Venue, markers, dry_run: bool) -> int:
         updated = 0
+        touched_ids: set = set()
         with transaction.atomic():
             for marker in markers:
                 zone = SeatZone.objects.filter(venue=venue, name__iexact=marker.zone).first()
@@ -118,7 +122,17 @@ class Command(BaseCommand):
                     seat.pos_y = marker.pos_y
                     seat.pos_z = marker.pos_z
                     seat.save(update_fields=['pos_x', 'pos_y', 'pos_z'])
+                    touched_ids.add(seat.id)
                 updated += 1
+
+            if not dry_run and touched_ids:
+                cleared = (
+                    Seat.objects.filter(venue=venue)
+                    .exclude(id__in=touched_ids)
+                    .update(pos_x=0, pos_y=0, pos_z=0)
+                )
+                if cleared:
+                    self.stdout.write(f'  Cleared 3D coords for {cleared} seats without physical slot')
 
             if dry_run:
                 transaction.set_rollback(True)
