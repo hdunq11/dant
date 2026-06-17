@@ -1,5 +1,5 @@
 import type { SeatMapSeat, SeatMapZone } from '../types';
-import { globalSeatNumber } from './seatGrid';
+import { rowLabelToIndex, VENUE_AISLE_AFTER, VENUE_SEATS_PER_ROW } from './seatGrid';
 export const STAGE_CENTER: [number, number, number] = [0, 0.45, -3.2];
 /** Điểm nhìn khi ngồi ghế — ngang tầm mắt, hướng sân khấu */
 export const STAGE_LOOK_AT: [number, number, number] = [0, 1.1, -3.2];
@@ -250,11 +250,9 @@ export function seatViewPosition(seat: Seat3D): [number, number, number] {
   return [seat.position[0], seat.position[1] + 0.75, seat.position[2]];
 }
 
-/** Nhãn ghế trên tấm bìa VR — số liên tục 1..336 theo layout hội trường */
+/** Nhãn ghế trên tấm bìa VR — hàng + số, ví dụ A1, A2, B14 */
 export function seatLabel(seat: Seat3D): string {
-  const global = globalSeatNumber(seat.row, seat.number);
-  if (global != null) return String(global);
-  const row = seat.row?.trim();
+  const row = seat.row?.trim().toUpperCase();
   const num = seat.number;
   if (row && num) return `${row}${num}`;
   if (row) return row;
@@ -262,29 +260,35 @@ export function seatLabel(seat: Seat3D): string {
   return '?';
 }
 
-/** Vị trí + hướng tấm bìa dán sau lưng ghế (hướng về phía khán giả) */
+/** Căn tấm bìa vào giữa lưng ghế — khối trái dịch phải, khối phải dịch trái */
+function seatLateralOffset(seatNumber: number): number {
+  if (seatNumber < 1 || seatNumber > VENUE_SEATS_PER_ROW) return 0;
+  const shift = 0.275;
+  return seatNumber <= VENUE_AISLE_AFTER ? shift : -shift;
+}
+
+/** Vị trí + hướng tấm bìa dán sau lưng ghế (mặt phẳng hướng khán giả) */
 export function seatTagPose(seat: Seat3D): {
   position: [number, number, number];
   rotation: [number, number, number];
 } {
   const [sx, sy, sz] = seat.position;
-  const [tx, , tz] = STAGE_CENTER;
-  const dx = sx - tx;
-  const dz = sz - tz;
-  const len = Math.hypot(dx, dz) || 1;
-  const ux = dx / len;
-  const uz = dz / len;
-  // Dán sát mặt lưng ghế — hướng ra phía khán giả (xa sân khấu)
-  const backOffset = 0.06;
-  const heightOffset = 0.26;
-  const px = sx + ux * backOffset;
-  const pz = sz + uz * backOffset;
-  const py = sy + heightOffset;
-  const rotationY = yawToward(px, pz, sx + ux * 1.2, sz + uz * 1.2);
-  const tiltBack = 0.18;
+  const [, , stageZ] = STAGE_CENTER;
+  const towardAudience = sz >= stageZ ? 1 : -1;
+
+  const rowIndex = rowLabelToIndex(seat.row) ?? 0;
+  // Hàng F–L trên bậc cao dần: tâm lưới lệch về phía sân khấu hơn so với mặt lưng ghế thật
+  const tierRows = Math.max(0, rowIndex - 4);
+  const upperTierRows = Math.max(0, rowIndex - 8); // hàng J–L (10–12)
+  const backOffset = 0.26 + tierRows * 0.045 + upperTierRows * 0.05;
+  const heightOffset = -0.3 + rowIndex * 0.022 - upperTierRows * 0.012;
+
+  const lateralOffset = seatLateralOffset(seat.number);
+
   return {
-    position: [px, py, pz],
-    rotation: [-tiltBack, rotationY, 0],
+    position: [sx + lateralOffset, sy + heightOffset, sz + towardAudience * backOffset],
+    // Pháp tuyến +Z: mặt tấm hướng khán giả (phía sau lưng ghế)
+    rotation: [0, 0, 0],
   };
 }
 

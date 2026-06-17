@@ -3,11 +3,13 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { concertApi } from '../api/concertApi';
 import { LoadingOverlay, Spinner } from '../components/Spinner';
 import { VrExperience } from '../components/vr/VrExperience';
+import { SeatInfoPanel } from '../components/vr/SeatInfoPanel';
 import { useVrFocusStore } from '../components/vr/vrFocusStore';
 import { snapTurnLeft, snapTurnRight } from '../components/vr/vrViewStore';
 import { xrStore } from '../components/vr/xrStore';
 import { getApiErrorMessage } from '../context/AuthContext';
 import type { CheckoutState, Concert, SeatMapZone, SelectedSeatDetail } from '../types';
+import type { Seat3D } from '../utils/seatMap3D';
 import { formatDateTime, formatVnd } from '../utils/format';
 import { preloadVenueModel } from '../components/vr/VenueModel';
 import { mapZonesTo3D, countGltfSeatsInZones, countSeatsInZones } from '../utils/seatMap3D';
@@ -27,6 +29,7 @@ export function VrPreviewPage() {
   const [zones, setZones] = useState<SeatMapZone[]>([]);
   const [selected, setSelected] = useState<SelectedSeatDetail[]>(initialSelected);
   const [previewSeatId, setPreviewSeatId] = useState<string | null>(null);
+  const [infoSeat, setInfoSeat] = useState<Seat3D | null>(null);
   const [viewFromSeat, setViewFromSeat] = useState(false);
   const [loading, setLoading] = useState(true);
   const [reserving, setReserving] = useState(false);
@@ -134,6 +137,7 @@ export function VrPreviewPage() {
       setSelected((prev) => prev.filter((s) => s.seatId !== seatId));
       if (previewSeatId === seatId) {
         setPreviewSeatId(null);
+        setInfoSeat(null);
         setViewFromSeat(false);
       }
       return;
@@ -146,29 +150,16 @@ export function VrPreviewPage() {
     setError(null);
   };
 
-  const exitSeatSelect = useCallback(() => {
-    const focusSeat = useVrFocusStore.getState().focusSeat;
-    const targetId = previewSeatId ?? focusSeat?.seatId ?? null;
-
-    if (targetId) {
-      const detail = selected.find((s) => s.seatId === targetId);
-      if (detail) {
-        toggleSeat(
-          detail.seatId,
-          detail.zoneId,
-          detail.zoneName,
-          detail.row,
-          detail.number,
-          detail.price,
-          true
-        );
-      }
-    }
-
-    clearFocus();
+  const closeInfoPanel = useCallback(() => {
+    setInfoSeat(null);
     setPreviewSeatId(null);
     setViewFromSeat(false);
-  }, [previewSeatId, selected, clearFocus]);
+    clearFocus();
+  }, [clearFocus]);
+
+  const exitSeatSelect = useCallback(() => {
+    closeInfoPanel();
+  }, [closeInfoPanel]);
 
   useEffect(() => {
     setExitSeatSelect(exitSeatSelect);
@@ -179,6 +170,7 @@ export function VrPreviewPage() {
     const session = xrStore.getState().session;
     if (!session) return;
     clearFocus();
+    setInfoSeat(null);
     setPreviewSeatId(null);
     setViewFromSeat(false);
     try {
@@ -193,25 +185,29 @@ export function VrPreviewPage() {
     return () => setExitVr(null);
   }, [exitVr, setExitVr]);
 
-  const handleSelectSeat = (seat: (typeof seats3D)[number]) => {
-    if (seat.selectable === false) return;
-
-    if (inVr) {
-      if (selectedIds.has(seat.seatId)) return;
-      toggleSeat(seat.seatId, seat.zoneId, seat.zoneName, seat.row, seat.number, seat.price, true);
-      setFocusSeat(seat);
-      setPreviewSeatId(seat.seatId);
-      return;
-    }
-
-    toggleSeat(seat.seatId, seat.zoneId, seat.zoneName, seat.row, seat.number, seat.price, true);
+  const handleInspectSeat = (seat: Seat3D) => {
+    setInfoSeat(seat);
+    setPreviewSeatId(seat.seatId);
+    if (inVr) setFocusSeat(seat);
   };
 
-  const handlePreviewSeat = (seat: (typeof seats3D)[number]) => {
-    if (seat.selectable === false) return;
-    setPreviewSeatId(seat.seatId);
+  const handleToggleInfoSeat = () => {
+    if (!infoSeat) return;
+    toggleSeat(
+      infoSeat.seatId,
+      infoSeat.zoneId,
+      infoSeat.zoneName,
+      infoSeat.row,
+      infoSeat.number,
+      infoSeat.price,
+      infoSeat.selectable !== false
+    );
+  };
+
+  const handleViewFromInfoSeat = () => {
+    if (!infoSeat) return;
     setViewFromSeat(true);
-    if (inVr) setFocusSeat(seat);
+    if (inVr) setFocusSeat(infoSeat);
   };
 
   const enterVr = async () => {
@@ -223,6 +219,7 @@ export function VrPreviewPage() {
     setError(null);
     setViewFromSeat(false);
     setPreviewSeatId(null);
+    setInfoSeat(null);
     clearFocus();
     try {
       const session = await xrStore.enterVR();
@@ -281,8 +278,8 @@ export function VrPreviewPage() {
         previewSeatId={previewSeatId}
         viewFromSeat={viewFromSeat}
         modelPath={concert?.venue?.model_glb_path ? `/${concert.venue.model_glb_path}` : null}
-        onSelectSeat={handleSelectSeat}
-        onPreviewSeat={handlePreviewSeat}
+        onSelectSeat={handleInspectSeat}
+        onPreviewSeat={handleViewFromInfoSeat}
       />
       </div>
 
@@ -355,11 +352,22 @@ export function VrPreviewPage() {
         </button>
       </div>
 
+      {infoSeat && concert ? (
+        <SeatInfoPanel
+          seat={infoSeat}
+          concert={concert}
+          selected={selectedIds.has(infoSeat.seatId)}
+          onClose={closeInfoPanel}
+          onToggleSelect={handleToggleInfoSeat}
+          onViewFromSeat={handleViewFromInfoSeat}
+        />
+      ) : null}
+
       <div className="vr-hint">
-        <span>Double-click chọn ghế</span>
+        <span>Click ghế xem thông tin</span>
         <span>Desktop: kéo chuột · Q/E hoặc nút Xoay</span>
         {xrSupported ? (
-          <span className="vr-hint__note">VR: A thoát chọn ghế · B thoát VR · stick xoay/di chuyển</span>
+          <span className="vr-hint__note">VR: A đóng thông tin ghế · B thoát VR · stick xoay/di chuyển</span>
         ) : (
           <span className="vr-hint__note">WebXR: Chrome + headset (Quest, v.v.)</span>
         )}

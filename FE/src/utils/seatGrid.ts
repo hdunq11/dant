@@ -17,6 +17,13 @@ export function seatPos2D(rowIndex: number, seatNumber: number, step = 10): { x:
   return { x, y: rowIndex * step };
 }
 
+/** Hàng A=0 … L=11 */
+export function rowLabelToIndex(rowLabel: string): number | null {
+  const row = rowLabel?.trim().toUpperCase();
+  if (!row || row.length !== 1 || row < 'A' || row > 'L') return null;
+  return row.charCodeAt(0) - 65;
+}
+
 /** Số ghế liên tục 1..336 — hàng A ghế 1 = 1, B1 = 29, B14 = 42, ... */
 export function globalSeatNumber(row: string, seatNumber: number): number | null {
   const r = row?.trim().toUpperCase();

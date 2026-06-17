@@ -1,20 +1,46 @@
 # CƠ SỞ DỮ LIỆU — CONCERT BOOKING SYSTEM
 
 **Hệ quản trị:** PostgreSQL  
-**ORM:** Django 6.x  
-**User model:** `AUTH_USER_MODEL = 'users.User'`
+**ORM:** Django 6.0.4  
+**User model:** `AUTH_USER_MODEL = 'users.User'`  
+**Cập nhật:** 17/06/2026 — đồng bộ với schema thực tế trên PostgreSQL
 
-Tài liệu mô tả **13 bảng nghiệp vụ** (không kể bảng hệ thống Django như `django_migrations`, `auth_group`, …).
+Tài liệu mô tả **14 bảng nghiệp vụ** (không kể bảng hệ thống Django như `django_migrations`, `auth_group`, …).
 
 ---
 
-## 1. Sơ đồ quan hệ tổng thể (ERD)
+## 1. Thống kê dữ liệu hiện tại
+
+| Bảng | Số bản ghi | Ghi chú |
+|------|------------|---------|
+| `users` | 105 | Fan, organizer, admin |
+| `organizer_profiles` | 1 | Hồ sơ nhà tổ chức (duyệt pending/approved/rejected) |
+| `artists` | 100 | |
+| `venues` | 50 | Có `model_glb_path` cho VR |
+| `concerts` | 300 | Workflow status + organizer |
+| `concert_artists` | 600 | ~2 nghệ sĩ/concert |
+| `seat_zones` | 250 | ~5 zone/venue |
+| `seats` | 44.436 | Tọa độ 2D/3D (pos_x, pos_y, pos_z) |
+| `concert_seats` | 479.502 | Trạng thái ghế theo từng show |
+| `vouchers` | 2 | Mã giảm giá active |
+| `orders` | 406 | pending / paid / cancelled |
+| `order_items` | 784 | ~1,9 ghế/đơn |
+| `user_behaviors` | 508 | view, click, favorite |
+| `favorites` | 200 | |
+
+---
+
+## 2. Sơ đồ quan hệ tổng thể (ERD)
 
 ```mermaid
 erDiagram
+    users ||--o| organizer_profiles : "có hồ sơ"
     users ||--o{ orders : "đặt"
     users ||--o{ user_behaviors : "ghi hành vi"
     users ||--o{ favorites : "yêu thích"
+    users ||--o{ venues : "sở hữu"
+    users ||--o{ concerts : "tổ chức"
+    users ||--o{ concert_seats : "giữ ghế"
 
     venues ||--o{ concerts : "tổ chức tại"
     venues ||--o{ seat_zones : "có khu ghế"
@@ -24,410 +50,311 @@ erDiagram
     concerts ||--o{ concert_artists : ""
     concerts ||--o{ concert_seats : "trạng thái ghế theo show"
     concerts ||--o{ orders : "đơn vé"
-    concerts ||--o{ user_behaviors : ""
-    concerts ||--o{ favorites : ""
 
     seat_zones ||--o{ seats : "thuộc khu"
-
-    seats ||--o{ concert_seats : "ghế cụ thể"
+    seats ||--o{ concert_seats : "instance"
     seats ||--o{ order_items : "vé đã mua"
 
     orders ||--o{ order_items : "chi tiết ghế"
-
-    users {
-        uuid id PK
-        string email UK
-        string full_name
-        string role
-    }
-
-    venues {
-        uuid id PK
-        string name
-        string city
-        int capacity
-    }
-
-    concerts {
-        uuid id PK
-        uuid venue_id FK
-        datetime start_time
-        datetime end_time
-    }
-
-    seat_zones {
-        uuid id PK
-        uuid venue_id FK
-        decimal price
-    }
-
-    seats {
-        uuid id PK
-        uuid venue_id FK
-        uuid zone_id FK
-        float pos_x
-        float pos_y
-    }
-
-    concert_seats {
-        uuid id PK
-        uuid concert_id FK
-        uuid seat_id FK
-        string status
-    }
-
-    orders {
-        uuid id PK
-        uuid user_id FK
-        uuid concert_id FK
-        decimal total_price
-        string status
-    }
-
-    order_items {
-        uuid id PK
-        uuid order_id FK
-        uuid seat_id FK
-        decimal price
-    }
 ```
 
 ---
 
-## 2. Luồng dữ liệu nghiệp vụ chính
+## 3. Luồng dữ liệu nghiệp vụ chính
 
 ```
-Venue ──► SeatZone ──► Seat (pos_x, pos_y — dùng cho sơ đồ 2D/VR)
+Venue (+ model_glb_path) ──► SeatZone ──► Seat (pos_x, pos_y, pos_z)
                 │
-Concert ◄── Venue
-   │
+Concert (status workflow) ◄── Venue
+   │              ▲
+   │              └── organizer_id (User)
    ├── ConcertArtist ◄── Artist
    │
-   └── ConcertSeat (available → reserved → sold)
+   └── ConcertSeat (available → reserved → sold, reserved_by, reserved_until)
             │
-User ──► Order ──► OrderItem ──► Seat
+User ──► Order (pricing breakdown + paypal_order_id) ──► OrderItem ──► Seat
          │
-         └── voucher_code (text, không FK trực tiếp tới bảng vouchers)
+         └── voucher_code (snapshot text, không FK)
 ```
 
 | Bước | Bảng liên quan | Mô tả |
 |------|----------------|--------|
-| 1 | `concerts`, `venues`, `concert_artists` | User xem thông tin show |
-| 2 | `seat_zones`, `seats`, `concert_seats` | API seatmap trả zone + ghế + status |
-| 3 | `concert_seats` | Reserve: `status = reserved`, set `reserved_until` |
-| 4 | `orders`, `order_items` | Tạo đơn pending, gắn ghế + giá |
-| 5 | `concert_seats` | Pay thành công: `status = sold` |
-| 6 | `user_behaviors`, `favorites` | Ghi log view/click/favorite để gợi ý |
+| 1 | `concerts`, `venues`, `concert_artists`, `organizer_profiles` | Fan xem show `published`; organizer quản lý draft → duyệt |
+| 2 | `seat_zones`, `seats`, `concert_seats` | API seatmap; auto-sync ConcertSeat khi load |
+| 3 | `concert_seats` | Reserve: `status=reserved`, `reserved_until`, `reserved_by` |
+| 4 | `orders`, `order_items` | Tạo đơn `pending`, snapshot giá từng ghế |
+| 5 | `orders`, `concert_seats` | PayPal capture OK → `paid`, ghế `sold` |
+| 6 | `user_behaviors`, `favorites` | Ghi log để gợi ý cá nhân hóa |
 
 ---
 
-## 3. Chi tiết từng bảng
+## 4. Chi tiết từng bảng
 
-### 3.1. `users` — Người dùng
+### 4.1. `users` — Người dùng
 
-Kế thừa `AbstractUser` của Django (auth). Admin đăng nhập Django Admin qua `is_staff` / `is_superuser`.
+Kế thừa `AbstractUser` của Django. Admin truy cập Django Admin qua `is_staff` / `is_superuser`.
 
 | Cột | Kiểu | Ràng buộc | Mô tả |
 |-----|------|-----------|--------|
-| `id` | UUID | **PK** | Khóa chính |
-| `username` | VARCHAR(150) | UNIQUE, NOT NULL | Username Django (auth) |
+| `id` | UUID | **PK** | |
+| `username` | VARCHAR(150) | UNIQUE, NOT NULL | Username Django |
 | `email` | VARCHAR(254) | UNIQUE, NOT NULL | Email đăng nhập |
-| `password` | VARCHAR(128) | NOT NULL | Hash mật khẩu Django |
-| `password_hash` | VARCHAR(255) | NOT NULL | Trường bổ sung (legacy/custom) |
+| `password` | VARCHAR(128) | NOT NULL | Hash Django |
+| `password_hash` | VARCHAR(255) | NOT NULL | Trường bổ sung |
 | `full_name` | VARCHAR(255) | NOT NULL | Họ tên hiển thị |
 | `avatar_url` | TEXT | NULL | URL ảnh đại diện |
-| `role` | VARCHAR(10) | DEFAULT `'user'` | `'user'` \| `'admin'` |
-| `first_name` | VARCHAR(150) | | Từ AbstractUser |
-| `last_name` | VARCHAR(150) | | Từ AbstractUser |
-| `is_staff` | BOOLEAN | DEFAULT false | Quyền vào Django Admin |
-| `is_superuser` | BOOLEAN | DEFAULT false | Superuser |
-| `is_active` | BOOLEAN | DEFAULT true | Tài khoản active |
-| `last_login` | TIMESTAMP | NULL | Lần đăng nhập cuối |
-| `date_joined` | TIMESTAMP | | Ngày tạo tài khoản |
-| `created_at` | TIMESTAMP | auto | Thời điểm tạo record |
-| `updated_at` | TIMESTAMP | auto | Thời điểm cập nhật |
+| `role` | VARCHAR(10) | DEFAULT `'user'` | `user` \| `organizer` \| `admin` |
+| `is_staff` | BOOLEAN | DEFAULT false | Django Admin |
+| `is_superuser` | BOOLEAN | DEFAULT false | |
+| `is_active` | BOOLEAN | DEFAULT true | |
+| `last_login` | TIMESTAMPTZ | NULL | |
+| `date_joined` | TIMESTAMPTZ | NOT NULL | |
+| `created_at` | TIMESTAMPTZ | auto | |
+| `updated_at` | TIMESTAMPTZ | auto | |
 
-**Quan hệ:**
-- `users` → `orders` (1-N, `orders.user_id`)
-- `users` → `user_behaviors` (1-N)
-- `users` → `favorites` (1-N)
-- `users` ↔ `auth_group`, `auth_permission` (M-N qua bảng trung gian Django)
+**Quan hệ:** → `orders`, `user_behaviors`, `favorites`, `owned_venues`, `organized_concerts`, `reserved_concert_seats`, `organizer_profile` (1-1)
 
-**File model:** `be/app/users/models.py`
+**File:** `be/app/users/models.py`
 
 ---
 
-### 3.2. `artists` — Nghệ sĩ
+### 4.2. `organizer_profiles` — Hồ sơ nhà tổ chức
 
 | Cột | Kiểu | Ràng buộc | Mô tả |
 |-----|------|-----------|--------|
 | `id` | UUID | **PK** | |
-| `name` | VARCHAR(255) | NOT NULL | Tên nghệ sĩ |
-| `genre` | VARCHAR(100) | NOT NULL | Thể loại: pop, kpop, rock, … |
-| `description` | TEXT | NULL | Mô tả |
-| `image_url` | TEXT | NULL | Ảnh nghệ sĩ |
-| `created_at` | TIMESTAMP | auto | |
-| `updated_at` | TIMESTAMP | auto | |
+| `user_id` | UUID | **FK → users**, CASCADE, UNIQUE | OneToOne |
+| `company_name` | VARCHAR(255) | NOT NULL | Tên công ty |
+| `business_license` | VARCHAR(100) | NOT NULL | Giấy phép KD |
+| `contact_phone` | VARCHAR(20) | NOT NULL | SĐT liên hệ |
+| `status` | VARCHAR(20) | DEFAULT `'pending'` | `pending` \| `approved` \| `rejected` |
+| `reviewed_by_id` | UUID | **FK → users**, SET NULL | Admin duyệt |
+| `reviewed_at` | TIMESTAMPTZ | NULL | |
+| `rejection_reason` | TEXT | NOT NULL | Lý do từ chối |
+| `created_at` | TIMESTAMPTZ | auto | |
+| `updated_at` | TIMESTAMPTZ | auto | |
 
-**Quan hệ:**
-- `artists` ↔ `concerts` qua bảng trung gian `concert_artists` (N-N)
-
-**File model:** `be/app/artists/models.py`
+**File:** `be/app/users/models.py`
 
 ---
 
-### 3.3. `venues` — Địa điểm / Nhà hát
+### 4.3. `artists` — Nghệ sĩ
 
 | Cột | Kiểu | Ràng buộc | Mô tả |
 |-----|------|-----------|--------|
 | `id` | UUID | **PK** | |
-| `name` | VARCHAR(255) | NOT NULL | Tên venue |
-| `city` | VARCHAR(100) | NOT NULL | Thành phố (filter concert) |
-| `address` | TEXT | NOT NULL | Địa chỉ |
-| `capacity` | INTEGER | NOT NULL | Sức chứa |
-| `created_at` | TIMESTAMP | auto | |
-| `updated_at` | TIMESTAMP | auto | |
+| `name` | VARCHAR(255) | NOT NULL | |
+| `genre` | VARCHAR(100) | NOT NULL | pop, kpop, rock, … |
+| `description` | TEXT | NULL | |
+| `image_url` | TEXT | NULL | |
+| `created_at` | TIMESTAMPTZ | auto | |
+| `updated_at` | TIMESTAMPTZ | auto | |
 
-**Quan hệ:**
-- `venues` → `concerts` (1-N, `concerts.venue_id`)
-- `venues` → `seat_zones` (1-N)
-- `venues` → `seats` (1-N)
-
-**File model:** `be/app/venues/models.py`
+**Quan hệ:** N-N `concerts` qua `concert_artists`
 
 ---
 
-### 3.4. `concerts` — Sự kiện concert
+### 4.4. `venues` — Địa điểm
 
 | Cột | Kiểu | Ràng buộc | Mô tả |
 |-----|------|-----------|--------|
 | `id` | UUID | **PK** | |
-| `title` | VARCHAR(255) | NOT NULL | Tên concert |
-| `description` | TEXT | NULL | Mô tả |
-| `start_time` | TIMESTAMP | NOT NULL | Giờ bắt đầu |
-| `end_time` | TIMESTAMP | NOT NULL | Giờ kết thúc |
-| `venue_id` | UUID | **FK → venues.id**, CASCADE | Địa điểm |
-| `banner_url` | TEXT | NULL | Ảnh banner |
-| `created_at` | TIMESTAMP | auto | |
-| `updated_at` | TIMESTAMP | auto | |
+| `name` | VARCHAR(255) | NOT NULL | |
+| `city` | VARCHAR(100) | NOT NULL | Filter concert |
+| `address` | TEXT | NOT NULL | |
+| `capacity` | INTEGER | NOT NULL | |
+| `organizer_id` | UUID | **FK → users**, SET NULL | Chủ venue (organizer) |
+| `model_glb_path` | VARCHAR(500) | NOT NULL | Đường dẫn GLB/GLTF cho VR (vd: `models/venue_stage_1/scene.gltf`) |
+| `created_at` | TIMESTAMPTZ | auto | |
+| `updated_at` | TIMESTAMPTZ | auto | |
 
-**Quan hệ:**
-- `concerts` → `concert_artists` (1-N)
-- `concerts` → `concert_seats` (1-N)
-- `concerts` → `orders` (1-N)
-- `concerts` → `user_behaviors`, `favorites` (1-N)
-
-**File model:** `be/app/concerts/models.py`
+**Quan hệ:** → `concerts`, `seat_zones`, `seats`
 
 ---
 
-### 3.5. `concert_artists` — Nghệ sĩ tham gia concert (N-N)
-
-| Cột | Kiểu | Ràng buộc | Mô tả |
-|-----|------|-----------|--------|
-| `id` | BIGINT | **PK** (auto) | Django tự sinh |
-| `concert_id` | UUID | **FK → concerts.id**, CASCADE | |
-| `artist_id` | UUID | **FK → artists.id**, CASCADE | |
-
-**Ràng buộc:** `UNIQUE (concert_id, artist_id)` — một nghệ sĩ không lặp trong cùng concert.
-
-**File model:** `be/app/concerts/models.py` — class `ConcertArtist`
-
----
-
-### 3.6. `seat_zones` — Khu vực ghế (VIP, A, B, …)
+### 4.5. `concerts` — Sự kiện
 
 | Cột | Kiểu | Ràng buộc | Mô tả |
 |-----|------|-----------|--------|
 | `id` | UUID | **PK** | |
-| `venue_id` | UUID | **FK → venues.id**, CASCADE | Thuộc venue |
-| `name` | VARCHAR(100) | NOT NULL | Tên khu: VIP, Standard, … |
-| `price` | DECIMAL(10,2) | NOT NULL | Giá vé khu này |
-| `color` | VARCHAR(20) | NOT NULL | Mã màu hex (UI seatmap) |
-| `created_at` | TIMESTAMP | auto | |
-| `updated_at` | TIMESTAMP | auto | |
+| `title` | VARCHAR(255) | NOT NULL | |
+| `description` | TEXT | NULL | |
+| `start_time` | TIMESTAMPTZ | NOT NULL | |
+| `end_time` | TIMESTAMPTZ | NOT NULL | |
+| `venue_id` | UUID | **FK → venues**, CASCADE | |
+| `organizer_id` | UUID | **FK → users**, SET NULL | Nhà tổ chức |
+| `status` | VARCHAR(20) | DEFAULT `'published'` | Xem mục 6 |
+| `event_source` | VARCHAR(20) | DEFAULT `'internal'` | `internal` \| `external` |
+| `banner_url` | TEXT | NULL | |
+| `created_at` | TIMESTAMPTZ | auto | |
+| `updated_at` | TIMESTAMPTZ | auto | |
 
-**Ràng buộc:** `UNIQUE (venue_id, name)` — tên khu không trùng trong cùng venue.
-
-**Quan hệ:**
-- `seat_zones` → `seats` (1-N, `seats.zone_id`)
-
-**File model:** `be/app/seats/models.py`
+**Workflow status:** `draft` → `pending_review` → `approved` / `rejected` → `published` → `cancelled` / `completed`
 
 ---
 
-### 3.7. `seats` — Ghế vật lý (cố định theo venue)
+### 4.6. `concert_artists` — N-N concert ↔ artist
+
+| Cột | Kiểu | Ràng buộc |
+|-----|------|-----------|
+| `id` | BIGINT | **PK** auto |
+| `concert_id` | UUID | **FK → concerts**, CASCADE |
+| `artist_id` | UUID | **FK → artists**, CASCADE |
+
+**UNIQUE:** `(concert_id, artist_id)`
+
+---
+
+### 4.7. `seat_zones` — Khu ghế
 
 | Cột | Kiểu | Ràng buộc | Mô tả |
 |-----|------|-----------|--------|
 | `id` | UUID | **PK** | |
-| `venue_id` | UUID | **FK → venues.id**, CASCADE | |
-| `zone_id` | UUID | **FK → seat_zones.id**, CASCADE | Khu ghế |
-| `row_label` | VARCHAR(5) | NOT NULL | Hàng: A, B, C, … |
-| `seat_number` | INTEGER | NOT NULL | Số ghế trong hàng |
-| `pos_x` | FLOAT | NOT NULL | Tọa độ X trên sơ đồ 2D (VR/Web UI) |
-| `pos_y` | FLOAT | NOT NULL | Tọa độ Y trên sơ đồ 2D |
-| `created_at` | TIMESTAMP | auto | |
+| `venue_id` | UUID | **FK → venues**, CASCADE | |
+| `name` | VARCHAR(100) | NOT NULL | VIP, A, B, Standard… |
+| `price` | NUMERIC(10,2) | NOT NULL | Giá vé (VND) |
+| `color` | VARCHAR(20) | NOT NULL | Hex cho UI |
+| `created_at` | TIMESTAMPTZ | auto | |
+| `updated_at` | TIMESTAMPTZ | auto | |
 
-**Ràng buộc:** `UNIQUE (venue_id, row_label, seat_number)` — không trùng ghế trong venue.
-
-**Quan hệ:**
-- `seats` → `concert_seats` (1-N)
-- `seats` → `order_items` (1-N)
-
-**File model:** `be/app/seats/models.py`
+**UNIQUE:** `(venue_id, name)`
 
 ---
 
-### 3.8. `concert_seats` — Trạng thái ghế theo từng concert
-
-Một ghế vật lý (`seats`) có thể dùng cho nhiều concert khác nhau tại cùng venue; trạng thái được lưu **theo từng show**.
+### 4.8. `seats` — Ghế vật lý (theo venue)
 
 | Cột | Kiểu | Ràng buộc | Mô tả |
 |-----|------|-----------|--------|
 | `id` | UUID | **PK** | |
-| `concert_id` | UUID | **FK → concerts.id**, CASCADE | |
-| `seat_id` | UUID | **FK → seats.id**, CASCADE | |
+| `venue_id` | UUID | **FK → venues**, CASCADE | |
+| `zone_id` | UUID | **FK → seat_zones**, CASCADE | |
+| `row_label` | VARCHAR(5) | NOT NULL | A, B, C… |
+| `seat_number` | INTEGER | NOT NULL | |
+| `pos_x` | DOUBLE PRECISION | NOT NULL | Trục X (2D map / 3D scene) |
+| `pos_y` | DOUBLE PRECISION | NOT NULL | Trục Z chiều sâu (3D) |
+| `pos_z` | DOUBLE PRECISION | NOT NULL | Độ cao Y (từ GLTF import) |
+| `created_at` | TIMESTAMPTZ | auto | |
+
+**UNIQUE:** `(venue_id, row_label, seat_number)`
+
+**Import GLTF:** `python manage.py import_seats_from_gltf` — đọc mesh ghế từ file GLB/GLTF venue.
+
+---
+
+### 4.9. `concert_seats` — Trạng thái ghế theo concert
+
+| Cột | Kiểu | Ràng buộc | Mô tả |
+|-----|------|-----------|--------|
+| `id` | UUID | **PK** | |
+| `concert_id` | UUID | **FK → concerts**, CASCADE | |
+| `seat_id` | UUID | **FK → seats**, CASCADE | |
 | `status` | VARCHAR(20) | DEFAULT `'available'` | `available` \| `reserved` \| `sold` |
-| `reserved_until` | TIMESTAMP | NULL | Hết hạn giữ chỗ (timeout) |
-| `created_at` | TIMESTAMP | auto | |
-| `updated_at` | TIMESTAMP | auto | |
+| `reserved_until` | TIMESTAMPTZ | NULL | TTL giữ chỗ (10 phút) |
+| `reserved_by_id` | UUID | **FK → users**, SET NULL | User đang giữ |
+| `created_at` | TIMESTAMPTZ | auto | |
+| `updated_at` | TIMESTAMPTZ | auto | |
 
-**Ràng buộc:** `UNIQUE (concert_id, seat_id)` — mỗi ghế chỉ một record/concert.
-
-**File model:** `be/app/seats/models.py`
+**UNIQUE:** `(concert_id, seat_id)`
 
 ---
 
-### 3.9. `vouchers` — Mã giảm giá
+### 4.10. `vouchers` — Mã giảm giá
 
 | Cột | Kiểu | Ràng buộc | Mô tả |
 |-----|------|-----------|--------|
 | `id` | UUID | **PK** | |
-| `code` | VARCHAR(50) | UNIQUE, NOT NULL | VD: `DATN10`, `CONCERT20` |
-| `discount_percent` | DECIMAL(5,2) | NOT NULL | % giảm |
-| `description` | VARCHAR(255) | | Mô tả voucher |
-| `is_active` | BOOLEAN | DEFAULT true | Còn hiệu lực |
-| `created_at` | TIMESTAMP | auto | |
-
-**Lưu ý:** `orders.voucher_code` lưu **chuỗi mã** đã áp dụng, **không có FK** trực tiếp tới `vouchers.id` (snapshot tại thời điểm đặt).
-
-**File model:** `be/app/orders/models.py`
+| `code` | VARCHAR(50) | UNIQUE | VD: DATN10 |
+| `discount_percent` | NUMERIC(5,2) | NOT NULL | % giảm trên seat_subtotal |
+| `description` | VARCHAR(255) | NOT NULL | |
+| `is_active` | BOOLEAN | DEFAULT true | |
+| `created_at` | TIMESTAMPTZ | auto | |
 
 ---
 
-### 3.10. `orders` — Đơn đặt vé
+### 4.11. `orders` — Đơn đặt vé
 
 | Cột | Kiểu | Ràng buộc | Mô tả |
 |-----|------|-----------|--------|
 | `id` | UUID | **PK** | |
-| `user_id` | UUID | **FK → users.id**, CASCADE | Người đặt |
-| `concert_id` | UUID | **FK → concerts.id**, CASCADE | Concert |
-| `seat_subtotal` | DECIMAL(12,2) | DEFAULT 0 | Tổng tiền ghế |
-| `booking_fee` | DECIMAL(10,2) | DEFAULT 0 | Phí đặt chỗ |
-| `delivery_fee` | DECIMAL(10,2) | DEFAULT 0 | Phí giao vé giấy |
-| `insurance_fee` | DECIMAL(10,2) | DEFAULT 0 | Phí bảo hiểm vé |
-| `discount_amount` | DECIMAL(10,2) | DEFAULT 0 | Số tiền giảm |
-| `voucher_code` | VARCHAR(50) | NULL | Mã voucher đã dùng |
+| `user_id` | UUID | **FK → users**, CASCADE | |
+| `concert_id` | UUID | **FK → concerts**, CASCADE | |
+| `seat_subtotal` | NUMERIC(12,2) | DEFAULT 0 | Tổng tiền ghế |
+| `booking_fee` | NUMERIC(10,2) | DEFAULT 0 | 20.000 ₫/đơn |
+| `delivery_fee` | NUMERIC(10,2) | DEFAULT 0 | 30.000 ₫ nếu vé giấy |
+| `insurance_fee` | NUMERIC(10,2) | DEFAULT 0 | 50.000 ₫ × số ghế |
+| `discount_amount` | NUMERIC(10,2) | DEFAULT 0 | |
+| `voucher_code` | VARCHAR(50) | NULL | Snapshot mã đã dùng |
 | `delivery_method` | VARCHAR(20) | DEFAULT `'e_ticket'` | `e_ticket` \| `paper` |
-| `has_insurance` | BOOLEAN | DEFAULT false | Có mua bảo hiểm |
-| `payment_method` | VARCHAR(30) | DEFAULT `'momo'` | Cổng TT (mock) |
-| `total_price` | DECIMAL(12,2) | NOT NULL | Tổng thanh toán |
+| `has_insurance` | BOOLEAN | DEFAULT false | |
+| `payment_method` | VARCHAR(30) | DEFAULT `'momo'` | Thực tế dùng `paypal` |
+| `stripe_payment_intent_id` | VARCHAR(255) | NOT NULL | Dự phòng tích hợp Stripe |
+| `paypal_order_id` | VARCHAR(255) | NOT NULL | ID đơn PayPal Sandbox |
+| `total_price` | NUMERIC(12,2) | NOT NULL | |
 | `status` | VARCHAR(20) | DEFAULT `'pending'` | `pending` \| `paid` \| `cancelled` |
-| `created_at` | TIMESTAMP | auto | |
-| `updated_at` | TIMESTAMP | auto | |
+| `created_at` | TIMESTAMPTZ | auto | |
+| `updated_at` | TIMESTAMPTZ | auto | |
 
-**Công thức pricing (logic app):**  
-`total_price = seat_subtotal + booking_fee + delivery_fee + insurance_fee - discount_amount`
-
-**Quan hệ:**
-- `orders` → `order_items` (1-N)
-
-**File model:** `be/app/orders/models.py` — logic tính giá: `be/app/orders/pricing.py`
+**Công thức:** `total = seat_subtotal + booking_fee + delivery_fee + insurance_fee - discount_amount`
 
 ---
 
-### 3.11. `order_items` — Chi tiết ghế trong đơn
+### 4.12. `order_items` — Chi tiết ghế trong đơn
 
-| Cột | Kiểu | Ràng buộc | Mô tả |
-|-----|------|-----------|--------|
-| `id` | UUID | **PK** | |
-| `order_id` | UUID | **FK → orders.id**, CASCADE | |
-| `seat_id` | UUID | **FK → seats.id**, CASCADE | Ghế đã mua |
-| `price` | DECIMAL(10,2) | NOT NULL | Giá ghế tại thời điểm đặt |
-| `created_at` | TIMESTAMP | auto | |
-
-**File model:** `be/app/orders/models.py`
+| Cột | Kiểu | Ràng buộc |
+|-----|------|-----------|
+| `id` | UUID | **PK** |
+| `order_id` | UUID | **FK → orders**, CASCADE |
+| `seat_id` | UUID | **FK → seats**, CASCADE |
+| `price` | NUMERIC(10,2) | NOT NULL — snapshot giá zone |
+| `created_at` | TIMESTAMPTZ | auto |
 
 ---
 
-### 3.12. `user_behaviors` — Hành vi người dùng (gợi ý)
+### 4.13. `user_behaviors` — Hành vi (gợi ý)
 
-| Cột | Kiểu | Ràng buộc | Mô tả |
-|-----|------|-----------|--------|
-| `id` | UUID | **PK** | |
-| `user_id` | UUID | **FK → users.id**, CASCADE | |
-| `concert_id` | UUID | **FK → concerts.id**, CASCADE | |
-| `action` | VARCHAR(20) | NOT NULL | `view` \| `click` \| `favorite` |
-| `created_at` | TIMESTAMP | auto | |
+| Cột | Kiểu | Ràng buộc |
+|-----|------|-----------|
+| `id` | UUID | **PK** |
+| `user_id` | UUID | **FK → users**, CASCADE |
+| `concert_id` | UUID | **FK → concerts**, CASCADE |
+| `action` | VARCHAR(20) | `view` \| `click` \| `favorite` |
+| `created_at` | TIMESTAMPTZ | auto |
 
-**Index:**
-- `(user_id, created_at)`
-- `(concert_id, action)`
-
-**File model:** `be/app/behaviors/models.py`
+**Index:** `(user_id, created_at)`, `(concert_id, action)`
 
 ---
 
-### 3.13. `favorites` — Concert yêu thích
+### 4.14. `favorites` — Yêu thích
 
-| Cột | Kiểu | Ràng buộc | Mô tả |
-|-----|------|-----------|--------|
-| `id` | BIGINT | **PK** (auto) | |
-| `user_id` | UUID | **FK → users.id**, CASCADE | |
-| `concert_id` | UUID | **FK → concerts.id**, CASCADE | |
-| `created_at` | TIMESTAMP | auto | |
+| Cột | Kiểu | Ràng buộc |
+|-----|------|-----------|
+| `id` | BIGINT | **PK** auto |
+| `user_id` | UUID | **FK → users**, CASCADE |
+| `concert_id` | UUID | **FK → concerts**, CASCADE |
+| `created_at` | TIMESTAMPTZ | auto |
 
-**Ràng buộc:** `UNIQUE (user_id, concert_id)` — mỗi user chỉ favorite một lần/concert.
-
-**File model:** `be/app/behaviors/models.py`
+**UNIQUE:** `(user_id, concert_id)`
 
 ---
 
-## 4. Bảng tóm tắt quan hệ (Foreign Keys)
+## 5. Bảng tóm tắt Foreign Keys
 
 | Bảng con | Cột FK | Bảng cha | ON DELETE |
 |----------|--------|----------|-----------|
+| `organizer_profiles` | `user_id` | `users` | CASCADE |
+| `organizer_profiles` | `reviewed_by_id` | `users` | SET NULL |
+| `venues` | `organizer_id` | `users` | SET NULL |
 | `concerts` | `venue_id` | `venues` | CASCADE |
-| `concert_artists` | `concert_id` | `concerts` | CASCADE |
-| `concert_artists` | `artist_id` | `artists` | CASCADE |
+| `concerts` | `organizer_id` | `users` | SET NULL |
+| `concert_artists` | `concert_id`, `artist_id` | `concerts`, `artists` | CASCADE |
 | `seat_zones` | `venue_id` | `venues` | CASCADE |
-| `seats` | `venue_id` | `venues` | CASCADE |
-| `seats` | `zone_id` | `seat_zones` | CASCADE |
-| `concert_seats` | `concert_id` | `concerts` | CASCADE |
-| `concert_seats` | `seat_id` | `seats` | CASCADE |
-| `orders` | `user_id` | `users` | CASCADE |
-| `orders` | `concert_id` | `concerts` | CASCADE |
-| `order_items` | `order_id` | `orders` | CASCADE |
-| `order_items` | `seat_id` | `seats` | CASCADE |
-| `user_behaviors` | `user_id` | `users` | CASCADE |
-| `user_behaviors` | `concert_id` | `concerts` | CASCADE |
-| `favorites` | `user_id` | `users` | CASCADE |
-| `favorites` | `concert_id` | `concerts` | CASCADE |
-
----
-
-## 5. Ràng buộc UNIQUE
-
-| Bảng | Cột | Ý nghĩa |
-|------|-----|---------|
-| `users` | `email`, `username` | Không trùng tài khoản |
-| `vouchers` | `code` | Mã voucher duy nhất |
-| `seat_zones` | `(venue_id, name)` | Tên khu duy nhất/venue |
-| `seats` | `(venue_id, row_label, seat_number)` | Ghế duy nhất/venue |
-| `concert_seats` | `(concert_id, seat_id)` | Một ghế một trạng thái/show |
-| `concert_artists` | `(concert_id, artist_id)` | Không lặp nghệ sĩ/show |
-| `favorites` | `(user_id, concert_id)` | Favorite một lần |
+| `seats` | `venue_id`, `zone_id` | `venues`, `seat_zones` | CASCADE |
+| `concert_seats` | `concert_id`, `seat_id` | `concerts`, `seats` | CASCADE |
+| `concert_seats` | `reserved_by_id` | `users` | SET NULL |
+| `orders` | `user_id`, `concert_id` | `users`, `concerts` | CASCADE |
+| `order_items` | `order_id`, `seat_id` | `orders`, `seats` | CASCADE |
+| `user_behaviors` | `user_id`, `concert_id` | `users`, `concerts` | CASCADE |
+| `favorites` | `user_id`, `concert_id` | `users`, `concerts` | CASCADE |
 
 ---
 
@@ -435,7 +362,10 @@ Một ghế vật lý (`seats`) có thể dùng cho nhiều concert khác nhau t
 
 | Bảng | Cột | Giá trị |
 |------|-----|---------|
-| `users` | `role` | `user`, `admin` |
+| `users` | `role` | `user`, `organizer`, `admin` |
+| `organizer_profiles` | `status` | `pending`, `approved`, `rejected` |
+| `concerts` | `status` | `draft`, `pending_review`, `approved`, `rejected`, `published`, `cancelled`, `completed` |
+| `concerts` | `event_source` | `internal`, `external` |
 | `concert_seats` | `status` | `available`, `reserved`, `sold` |
 | `orders` | `status` | `pending`, `paid`, `cancelled` |
 | `orders` | `delivery_method` | `e_ticket`, `paper` |
@@ -443,43 +373,49 @@ Một ghế vật lý (`seats`) có thể dùng cho nhiều concert khác nhau t
 
 ---
 
-## 7. Sơ đồ phân lớp theo module Django
+## 7. Phân lớp theo module Django
 
 ```
-app/users/          → users
+app/users/          → users, organizer_profiles
 app/artists/        → artists
 app/venues/         → venues
 app/concerts/       → concerts, concert_artists
 app/seats/          → seat_zones, seats, concert_seats
 app/orders/         → vouchers, orders, order_items
 app/behaviors/      → user_behaviors, favorites
+app/organizer/      → (không có model — API portal)
+app/admin_panel/    → (không có model — API portal)
 ```
 
 ---
 
-## 8. API liên quan trực tiếp tới DB
+## 8. API ↔ bảng CSDL
 
 | API | Bảng đọc/ghi |
 |-----|--------------|
 | `GET /api/concerts/concerts/` | `concerts`, `venues`, `concert_artists` |
-| `GET /api/concerts/concerts/{id}/seatmap/` | `seat_zones`, `seats`, `concert_seats` |
-| `POST /api/seats/booking/reserve/` | `concert_seats` (→ reserved) |
+| `GET /api/concerts/concerts/{id}/seatmap/` | `seat_zones`, `seats`, `concert_seats` (auto-sync) |
+| `POST /api/seats/booking/reserve/` | `concert_seats` → reserved |
 | `POST /api/orders/orders/` | `orders`, `order_items` |
-| `POST /api/orders/orders/{id}/pay/` | `orders`, `concert_seats` (→ sold) |
+| `POST /api/orders/orders/{id}/create_paypal_order/` | `orders` (paypal_order_id) |
+| `POST /api/orders/orders/{id}/pay/` | `orders` → paid, `concert_seats` → sold |
 | `GET /api/behaviors/recommend/` | `user_behaviors`, `concerts` |
-| `GET/POST favorites` | `favorites` |
+| `GET/POST /api/users/me/favorites/` | `favorites` |
+| `GET /api/organizer/dashboard/` | aggregate orders, concerts |
+| `POST /api/admin/organizers/{id}/approve/` | `organizer_profiles`, `users` |
 
-Chi tiết API: `be/API_DOCUMENTATION.md`
+Swagger: `http://localhost:8000/api/docs/`
 
 ---
 
 ## 9. Ghi chú thiết kế
 
-1. **Tách `seats` và `concert_seats`:** Ghế vật lý gắn venue; trạng thái bán/giữ gắn từng concert — tái sử dụng layout cho nhiều show.
-2. **`pos_x`, `pos_y`:** Phục vụ sơ đồ 2D web/mobile và client VR; API seatmap trả về qua `GET .../seatmap/`.
-3. **`voucher_code` trên order:** Lưu snapshot, không FK — voucher có thể đổi/`is_active=false` sau này.
-4. **Pricing tách dòng:** `seat_subtotal`, `booking_fee`, `delivery_fee`, `insurance_fee`, `discount_amount` hỗ trợ hiển thị minh bạch trên FE.
-5. **PostgreSQL:** Cấu hình qua biến môi trường `POSTGRES_*` trong `be/config/settings.py`.
+1. **Tách `seats` / `concert_seats`:** Layout ghế tái sử dụng cho nhiều show; trạng thái bán theo concert.
+2. **`pos_x`, `pos_y`, `pos_z`:** Sơ đồ 2D web/mobile + scene 3D VR (Three.js); import từ GLTF mesh ghế.
+3. **`voucher_code` trên order:** Snapshot text, không FK — bảo toàn lịch sử khi voucher bị vô hiệu.
+4. **Pricing tách dòng:** Hiển thị minh bạch phí đặt chỗ, giao vé, bảo hiểm, giảm giá.
+5. **PayPal:** Giá VND quy đổi USD (`PAYPAL_VND_PER_USD=25000`) khi gọi PayPal Sandbox API.
+6. **PostgreSQL:** Cấu hình `POSTGRES_*` trong `be/config/settings.py`; DB mặc định `concert`.
 
 ---
 
@@ -490,9 +426,7 @@ Chi tiết API: `be/API_DOCUMENTATION.md`
 | Models | `be/app/*/models.py` |
 | Migrations | `be/app/*/migrations/` |
 | Pricing | `be/app/orders/pricing.py` |
-| Seatmap view | `be/app/concerts/views.py` → action `seatmap` |
-| Reserve logic | `be/app/seats/views.py` |
-
----
-
-*Tài liệu đồng bộ với schema Django tại thời điểm migration `0003_voucher_order_pricing_fields` (orders).*
+| PayPal | `be/app/orders/payments.py` |
+| Reserve | `be/app/seats/reservation.py` |
+| GLTF import | `be/app/seats/gltf_import.py` |
+| Seatmap | `be/app/concerts/views.py` |

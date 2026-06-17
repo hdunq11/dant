@@ -22,10 +22,23 @@ function accentColor(seat: Seat3D, selected: boolean, previewing: boolean, hover
   return seat.color;
 }
 
+function contrastTextColor(background: string, disabled: boolean): string {
+  if (disabled) return '#64748b';
+  const hex = background.replace('#', '');
+  if (hex.length !== 6) return '#f8fafc';
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  const luma = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luma > 0.6 ? '#0f172a' : '#f8fafc';
+}
+
 export function SeatMesh({ seat, selected, previewing, onSelect, onPreview }: SeatMeshProps) {
   const [hovered, setHovered] = useState(false);
   const disabled = seat.selectable === false;
   const accent = accentColor(seat, selected, previewing, hovered);
+  const faceColor = disabled ? '#e2e8f0' : accent;
+  const textColor = contrastTextColor(faceColor, disabled);
   const { position, rotation } = seatTagPose(seat);
   const label = seatLabel(seat);
   const highlight = selected || previewing;
@@ -60,14 +73,24 @@ export function SeatMesh({ seat, selected, previewing, onSelect, onPreview }: Se
       >
         <planeGeometry args={[0.33, 0.22]} />
         <meshStandardMaterial
-          color={disabled ? '#e2e8f0' : '#faf3e0'}
+          color={faceColor}
           roughness={0.95}
           emissive={highlight ? accent : '#000000'}
           emissiveIntensity={highlight ? 0.18 : 0}
           side={DoubleSide}
         />
       </mesh>
-      <Text position={[0, 0, 0.008]} fontSize={0.1} color={disabled ? '#94a3b8' : '#1e293b'} anchorX="center" anchorY="middle">
+      <Text position={[0, 0, 0.008]} fontSize={0.1} color={textColor} anchorX="center" anchorY="middle">
+        {label}
+      </Text>
+      <Text
+        position={[0, 0, -0.008]}
+        rotation={[0, Math.PI, 0]}
+        fontSize={0.1}
+        color={textColor}
+        anchorX="center"
+        anchorY="middle"
+      >
         {label}
       </Text>
     </group>

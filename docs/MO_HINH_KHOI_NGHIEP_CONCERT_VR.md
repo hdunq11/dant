@@ -1,8 +1,9 @@
 # ĐỊNH HƯỚNG KHỞI NGHIỆP VÀ THƯƠNG MẠI HÓA
 
 **Dự án:** Xây dựng ứng dụng mua vé concert tích hợp công nghệ VR trải nghiệm sơ đồ không gian  
-**Mã dự án:** DATN — Concert Booking System  
-**Khung áp dụng:** Design Thinking · Lean Startup · Business Model Canvas (Osterwalder) · Lean Canvas (Ash Maurya)
+**Mã dự án:** DATN — Concert Booking System (ConcertGo)  
+**Khung áp dụng:** Design Thinking · Lean Startup · Business Model Canvas (Osterwalder) · Lean Canvas (Ash Maurya)  
+**Cập nhật trạng thái MVP:** 17/06/2026
 
 ---
 
@@ -62,7 +63,7 @@ flowchart LR
 | **Paper prototype** | Luồng chọn ghế trên giấy | Thấp | Hiểu mental model người dùng |
 | **Figma clickable** | Mock VR toggle + seat map | Trung bình | Test UX trước khi code |
 | **MVP phần mềm** | Web + API seatmap 2D + mobile Android | Trung bình | Đo conversion search → book |
-| **VR MVP** | WebXR / Unity viewer + API seatmap | Cao | Validate “VR có tăng tỷ lệ chốt vé?” |
+| **VR MVP** | Three.js viewer + GLTF venue + tọa độ 3D ghế | Cao | Validate “VR có tăng tỷ lệ chốt vé?” — **đã có trên web** |
 
 ---
 
@@ -89,16 +90,19 @@ flowchart TB
     LEARN -->|Pivot| BUILD
 ```
 
-### 3.3. Lộ trình MVP (gắn mã nguồn DATN)
+### 3.3. Lộ trình MVP (gắn mã nguồn DATN — cập nhật 17/06/2026)
 
 | Giai đoạn | Phạm vi | Trạng thái dự án |
 |-----------|--------|------------------|
-| **MVP 1** | Auth, danh sách concert, seatmap 2D, giữ chỗ, checkout mock | ✅ Web + BE + Mobile cơ bản |
-| **MVP 2** | Gợi ý concert, voucher, pricing minh bạch, UI seatmap nâng cao | ✅ Đang hoàn thiện |
-| **MVP 3** | WebXR / VR viewer đọc `pos_x`, `pos_y`, zone từ API | 🔜 Roadmap (API đã sẵn sàng) |
-| **MVP 4** | Cổng TT thật (MoMo/VNPAY), push notification | 🔜 Ngoài phạm vi đồ án |
+| **MVP 1** | Auth, danh sách concert, seatmap 2D, giữ chỗ, checkout | ✅ Web + BE + Mobile |
+| **MVP 2** | Gợi ý, voucher, pricing minh bạch, PayPal Sandbox | ✅ Hoàn thành |
+| **MVP 2b** | Organizer portal, Admin portal web, workflow duyệt concert | ✅ Hoàn thành |
+| **MVP 3** | Three.js VR preview (`/concerts/:id/vr-preview`), GLTF import ghế 3D (`pos_z`) | ✅ Web — WebXR nâng cao 🔜 |
+| **MVP 4** | Cổng TT production (MoMo/VNPAY), push notification, iOS | 🔜 Ngoài phạm vi đồ án |
 
-> Backend đã expose `GET /api/concerts/concerts/{id}/seatmap/` với tọa độ 2D từng ghế — **sẵn sàng cho client VR** (Unity, Three.js, WebXR).
+**Dữ liệu thực tế (PostgreSQL):** 300 concert · 50 venue · 44.436 ghế · 406 đơn hàng · 105 user.
+
+> API seatmap trả `pos_x`, `pos_y`, `pos_z` + venue `model_glb_path` — client VR đã tích hợp trên **React/Three.js**. Mobile Android dùng seatmap 2D + PayPal browser flow.
 
 ### 3.4. Pivot vs Persevere — Quy tắc quyết định
 

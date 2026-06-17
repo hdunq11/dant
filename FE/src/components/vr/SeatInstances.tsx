@@ -2,7 +2,6 @@ import { Text } from '@react-three/drei';
 import { type ThreeEvent } from '@react-three/fiber';
 import { memo, useState } from 'react';
 import { DoubleSide } from 'three';
-import { useXR } from '@react-three/xr';
 import type { Seat3D } from '../../utils/seatMap3D';
 import { seatLabel, seatTagPose } from '../../utils/seatMap3D';
 
@@ -23,22 +22,34 @@ function accentColor(seat: Seat3D, selected: boolean, previewing: boolean, hover
   return seat.color;
 }
 
+/** Chữ tương phản trên nền màu zone */
+function contrastTextColor(background: string, disabled: boolean): string {
+  if (disabled) return '#64748b';
+  const hex = background.replace('#', '');
+  if (hex.length !== 6) return '#f8fafc';
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  const luma = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luma > 0.6 ? '#0f172a' : '#f8fafc';
+}
+
 const SeatTag = memo(function SeatTag({
   seat,
   selected,
   previewing,
-  vrMode,
   onSelect,
 }: {
   seat: Seat3D;
   selected: boolean;
   previewing: boolean;
-  vrMode: boolean;
   onSelect: (seat: Seat3D) => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const disabled = seat.selectable === false;
   const accent = accentColor(seat, selected, previewing, hovered);
+  const faceColor = disabled ? '#e2e8f0' : accent;
+  const textColor = contrastTextColor(faceColor, disabled);
   const { position, rotation } = seatTagPose(seat);
   const label = seatLabel(seat);
   const highlight = selected || previewing;
@@ -46,8 +57,16 @@ const SeatTag = memo(function SeatTag({
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
-    if (disabled) return;
     onSelect(seat);
+  };
+
+  const bindClick = {
+    onClick: handleClick,
+    onPointerOver: (e: ThreeEvent<PointerEvent>) => {
+      e.stopPropagation();
+      if (!disabled) setHovered(true);
+    },
+    onPointerOut: () => setHovered(false),
   };
 
   return (
@@ -57,20 +76,14 @@ const SeatTag = memo(function SeatTag({
         <planeGeometry args={[0.24, 0.17]} />
         <meshStandardMaterial color={accent} roughness={0.85} side={DoubleSide} />
       </mesh>
-      {/* Mặt giấy bìa */}
+      {/* Mặt tấm bìa — hai mặt cùng màu zone */}
       <mesh
         renderOrder={2}
-        onClick={vrMode ? handleClick : undefined}
-        onDoubleClick={vrMode ? undefined : handleClick}
-        onPointerOver={(e) => {
-          e.stopPropagation();
-          if (!disabled) setHovered(true);
-        }}
-        onPointerOut={() => setHovered(false)}
+        {...bindClick}
       >
         <planeGeometry args={[0.22, 0.15]} />
         <meshStandardMaterial
-          color={disabled ? '#e2e8f0' : '#faf3e0'}
+          color={faceColor}
           roughness={0.95}
           metalness={0}
           emissive={highlight ? accent : '#000000'}
@@ -78,22 +91,29 @@ const SeatTag = memo(function SeatTag({
           side={DoubleSide}
         />
       </mesh>
-      {/* Chữ số ghế */}
+      {/* Chữ số ghế — hai mặt tấm bìa */}
       <Text
         position={[0, 0, 0.008]}
         fontSize={0.075}
-        color={disabled ? '#94a3b8' : '#1e293b'}
+        color={textColor}
         anchorX="center"
         anchorY="middle"
         maxWidth={0.3}
         renderOrder={3}
-        onClick={vrMode ? handleClick : undefined}
-        onDoubleClick={vrMode ? undefined : handleClick}
-        onPointerOver={(e) => {
-          e.stopPropagation();
-          if (!disabled) setHovered(true);
-        }}
-        onPointerOut={() => setHovered(false)}
+        {...bindClick}
+      >
+        {label}
+      </Text>
+      <Text
+        position={[0, 0, -0.008]}
+        rotation={[0, Math.PI, 0]}
+        fontSize={0.075}
+        color={textColor}
+        anchorX="center"
+        anchorY="middle"
+        maxWidth={0.3}
+        renderOrder={3}
+        {...bindClick}
       >
         {label}
       </Text>
@@ -107,9 +127,6 @@ export function SeatInstances({
   previewSeatId,
   onSelect,
 }: SeatInstancesProps) {
-  const session = useXR((s) => s.session);
-  const vrMode = !!session;
-
   if (!seats.length) return null;
 
   return (
@@ -120,7 +137,6 @@ export function SeatInstances({
           seat={seat}
           selected={selectedIds.has(seat.seatId)}
           previewing={previewSeatId === seat.seatId}
-          vrMode={vrMode}
           onSelect={onSelect}
         />
       ))}

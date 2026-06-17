@@ -57,6 +57,14 @@ def _request(method: str, path: str, token: str | None = None, body: dict | None
         with urllib.request.urlopen(req, timeout=30) as resp:
             raw = resp.read().decode('utf-8')
             return json.loads(raw) if raw else {}
+    except urllib.error.URLError as exc:
+        reason = str(exc.reason)
+        if 'getaddrinfo failed' in reason or 'Name or service not known' in reason:
+            raise RuntimeError(
+                'Máy chạy backend không kết nối được PayPal Sandbox '
+                f'({_api_base()}). Kiểm tra internet/DNS trên máy đó.'
+            ) from exc
+        raise RuntimeError(f'Không kết nối được PayPal: {reason}') from exc
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode('utf-8', errors='replace')
         raise RuntimeError(f'PayPal API error {exc.code}: {detail}') from exc
@@ -84,6 +92,14 @@ def _get_access_token() -> str:
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             payload = json.loads(resp.read().decode('utf-8'))
+    except urllib.error.URLError as exc:
+        reason = str(exc.reason)
+        if 'getaddrinfo failed' in reason or 'Name or service not known' in reason:
+            raise RuntimeError(
+                'Máy chạy backend không kết nối được PayPal Sandbox '
+                f'({_api_base()}). Kiểm tra internet/DNS trên máy đó.'
+            ) from exc
+        raise RuntimeError(f'Không kết nối được PayPal: {reason}') from exc
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode('utf-8', errors='replace')
         raise RuntimeError(f'PayPal auth error {exc.code}: {detail}') from exc
