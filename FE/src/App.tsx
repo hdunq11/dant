@@ -18,6 +18,9 @@ import { TicketsPage } from './pages/TicketsPage';
 const VrPreviewPage = lazy(() =>
   import('./pages/VrPreviewPage').then((m) => ({ default: m.VrPreviewPage }))
 );
+const Stage1VrPreviewPage = lazy(() =>
+  import('./pages/Stage1VrPreviewPage').then((m) => ({ default: m.Stage1VrPreviewPage }))
+);
 import { AdminRoute } from './components/AdminRoute';
 import { OrganizerRoute } from './components/OrganizerRoute';
 import { OrganizerPendingRoute } from './components/OrganizerPendingRoute';
@@ -137,6 +140,16 @@ export default function App() {
                 <FanProtectedRoute>
                   <Suspense fallback={<Spinner />}>
                     <VrPreviewPage />
+                  </Suspense>
+                </FanProtectedRoute>
+              }
+            />
+            <Route
+              path="concerts/:id/vr-stage1"
+              element={
+                <FanProtectedRoute>
+                  <Suspense fallback={<Spinner />}>
+                    <Stage1VrPreviewPage />
                   </Suspense>
                 </FanProtectedRoute>
               }

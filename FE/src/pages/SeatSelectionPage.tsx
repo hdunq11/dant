@@ -7,6 +7,8 @@ import { getApiErrorMessage } from '../context/AuthContext';
 import type { CheckoutState, Concert, SeatMapZone, SelectedSeatDetail } from '../types';
 import { formatDateTime, formatVnd } from '../utils/format';
 import { layoutSeatMapZones } from '../utils/seatMapLayout';
+import { layoutStage1SeatMapZones } from '../utils/seatMapLayoutStage1';
+import { isStage1Auditorium, isStage1VenueModel } from '../utils/stage1SeatGrid';
 import './SeatSelectionPage.css';
 
 interface SeatLocationState {
@@ -68,10 +70,13 @@ export function SeatSelectionPage() {
     return () => clearInterval(poll);
   }, [id]);
 
-  const { zoneLayouts, canvasW, canvasH } = useMemo(
-    () => layoutSeatMapZones(zones),
-    [zones]
-  );
+  const { zoneLayouts, canvasW, canvasH, stageWidth } = useMemo(() => {
+    if (isStage1VenueModel(concert?.venue?.model_glb_path) && isStage1Auditorium(zones)) {
+      return layoutStage1SeatMapZones(zones);
+    }
+    const base = layoutSeatMapZones(zones);
+    return { ...base, stageWidth: undefined as number | undefined };
+  }, [zones, concert?.venue?.model_glb_path]);
 
   const subtotal = selected.reduce((s, x) => s + x.price, 0);
 
@@ -190,7 +195,12 @@ export function SeatSelectionPage() {
                   transformOrigin: 'top center',
                 }}
               >
-                <div className="arena-stage">Sân khấu</div>
+                <div
+                  className="arena-stage"
+                  style={stageWidth ? { width: stageWidth, maxWidth: 'none' } : undefined}
+                >
+                  Sân khấu
+                </div>
 
                 {zoneLayouts.map((layout) => (
                     <div
@@ -287,7 +297,11 @@ export function SeatSelectionPage() {
             Tiếp tục thanh toán
           </button>
           <Link
-            to={`/concerts/${id}/vr-preview`}
+            to={
+              isStage1VenueModel(concert?.venue?.model_glb_path)
+                ? `/concerts/${id}/vr-stage1`
+                : `/concerts/${id}/vr-preview`
+            }
             state={{ selected }}
             className="btn btn-outline btn-block vr-link"
           >

@@ -8,6 +8,7 @@ import { getApiErrorMessage, useAuth } from '../context/AuthContext';
 import type { Concert } from '../types';
 import { extractList } from '../utils/apiData';
 import { concertArtistsLabel, formatDateTime } from '../utils/format';
+import { isStage1VenueModel } from '../utils/stage1SeatGrid';
 import { IconCalendar, IconLocation } from '../components/fan/FanIcons';
 import './ConcertDetailPage.css';
 
@@ -80,11 +81,14 @@ export function ConcertDetailPage() {
   };
 
   const previewVr = () => {
+    const vrPath = isStage1VenueModel(concert?.venue?.model_glb_path)
+      ? `/concerts/${id}/vr-stage1`
+      : `/concerts/${id}/vr-preview`;
     if (!isAuthenticated) {
-      navigate('/login', { state: { from: `/concerts/${id}/vr-preview` } });
+      navigate('/login', { state: { from: vrPath } });
       return;
     }
-    navigate(`/concerts/${id}/vr-preview`);
+    navigate(vrPath);
   };
 
   const hasVr = !!concert?.venue?.model_glb_path;
