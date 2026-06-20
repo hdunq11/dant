@@ -1,4 +1,5 @@
 import type { SeatMapZone } from '../types';
+import { resolveZoneColor } from './zoneColors';
 import {
   STAGE1_AISLE_GAP_2D,
   STAGE1_ROW_COUNT,
@@ -26,6 +27,7 @@ export interface Stage1LayoutSeat {
   status?: string;
   selectable?: boolean;
   reservedByMe?: boolean;
+  zoneColor?: string;
   x: number;
   y: number;
 }
@@ -68,7 +70,8 @@ export function layoutStage1SeatMapZones(zones: SeatMapZone[]): {
   const leftSeats: Stage1LayoutSeat[] = [];
   const rightSeats: Stage1LayoutSeat[] = [];
 
-  for (const zone of zones) {
+  for (let zoneIndex = 0; zoneIndex < zones.length; zoneIndex++) {
+    const zone = zones[zoneIndex];
     for (const seat of zone.seats ?? []) {
       const row = (seat.row ?? 'A').trim().toUpperCase();
       const num = seat.number ?? 0;
@@ -91,6 +94,7 @@ export function layoutStage1SeatMapZones(zones: SeatMapZone[]): {
         status: seat.status,
         selectable: seat.selectable ?? (seat.status !== 'sold' && seat.status !== 'reserved'),
         reservedByMe: seat.reserved_by_me,
+        zoneColor: resolveZoneColor(zone.color, zoneIndex),
         x: blockX + cell.x,
         y: originY + cell.y,
       };

@@ -57,6 +57,9 @@ def _request(method: str, path: str, token: str | None = None, body: dict | None
         with urllib.request.urlopen(req, timeout=30) as resp:
             raw = resp.read().decode('utf-8')
             return json.loads(raw) if raw else {}
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode('utf-8', errors='replace')
+        raise RuntimeError(f'PayPal API error {exc.code}: {detail}') from exc
     except urllib.error.URLError as exc:
         reason = str(exc.reason)
         if 'getaddrinfo failed' in reason or 'Name or service not known' in reason:
@@ -65,9 +68,6 @@ def _request(method: str, path: str, token: str | None = None, body: dict | None
                 f'({_api_base()}). Kiểm tra internet/DNS trên máy đó.'
             ) from exc
         raise RuntimeError(f'Không kết nối được PayPal: {reason}') from exc
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode('utf-8', errors='replace')
-        raise RuntimeError(f'PayPal API error {exc.code}: {detail}') from exc
 
 
 def _get_access_token() -> str:
@@ -92,6 +92,9 @@ def _get_access_token() -> str:
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             payload = json.loads(resp.read().decode('utf-8'))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode('utf-8', errors='replace')
+        raise RuntimeError(f'PayPal auth error {exc.code}: {detail}') from exc
     except urllib.error.URLError as exc:
         reason = str(exc.reason)
         if 'getaddrinfo failed' in reason or 'Name or service not known' in reason:
@@ -100,9 +103,6 @@ def _get_access_token() -> str:
                 f'({_api_base()}). Kiểm tra internet/DNS trên máy đó.'
             ) from exc
         raise RuntimeError(f'Không kết nối được PayPal: {reason}') from exc
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode('utf-8', errors='replace')
-        raise RuntimeError(f'PayPal auth error {exc.code}: {detail}') from exc
 
     token = payload.get('access_token')
     if not token:
@@ -158,10 +158,7 @@ def create_paypal_order_for_order(order, return_url: str | None = None, cancel_u
     return created
 
 
-def capture_and_verify_paypal_order(order, paypal_order_id: str) -> tuple[bool, str | None]:
-    token = _get_access_token()
-    captured = _request('POST', f'/v2/checkout/orders/{paypal_order_id}/capture', token=token, body={})
-
+def _verify_capture_payload(captured: dict, order) -> tuple[bool, str | None]:
     if captured.get('status') != 'COMPLETED':
         return False, f'Thanh toán chưa hoàn tất (trạng thái: {captured.get("status")})'
 
@@ -186,3 +183,27 @@ def capture_and_verify_paypal_order(order, paypal_order_id: str) -> tuple[bool, 
         return False, 'Phản hồi PayPal không hợp lệ'
 
     return True, None
+
+
+def capture_and_verify_paypal_order(order, paypal_order_id: str) -> tuple[bool, str | None]:
+    token = _get_access_token()
+    current = _request('GET', f'/v2/checkout/orders/{paypal_order_id}', token=token)
+    paypal_status = current.get('status')
+
+    if paypal_status == 'COMPLETED':
+        return _verify_capture_payload(current, order)
+
+    if paypal_status != 'APPROVED':
+        return False, f'Thanh toán chưa được duyệt (trạng thái: {paypal_status})'
+
+    try:
+        captured = _request('POST', f'/v2/checkout/orders/{paypal_order_id}/capture', token=token, body={})
+    except RuntimeError as exc:
+        err = str(exc)
+        if '422' in err or 'ORDER_ALREADY_CAPTURED' in err:
+            current = _request('GET', f'/v2/checkout/orders/{paypal_order_id}', token=token)
+            if current.get('status') == 'COMPLETED':
+                return _verify_capture_payload(current, order)
+        raise
+
+    return _verify_capture_payload(captured, order)

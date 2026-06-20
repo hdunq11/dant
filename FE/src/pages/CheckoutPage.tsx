@@ -1,7 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { concertApi } from '../api/concertApi';
-import { PayPalPaymentButtons } from '../components/PayPalPaymentButtons';
 import { LoadingOverlay } from '../components/Spinner';
 import { getApiErrorMessage } from '../context/AuthContext';
 import type { CheckoutState } from '../types';
@@ -18,16 +17,10 @@ function loadCheckout(): CheckoutState | null {
   }
 }
 
-interface PaymentSession {
-  orderId: string;
-  paypalOrderId: string;
-  clientId: string;
-  currency: string;
-}
-
 export function CheckoutPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const checkout = loadCheckout();
   const [deliveryMethod, setDeliveryMethod] = useState<'e_ticket' | 'paper'>('e_ticket');
   const [hasInsurance, setHasInsurance] = useState(false);
@@ -38,8 +31,6 @@ export function CheckoutPage() {
   const [progress, setProgress] = useState<string | null>(null);
   const [countdown, setCountdown] = useState('');
   const [paymentEnabled, setPaymentEnabled] = useState<boolean | null>(null);
-  const [paymentCurrency, setPaymentCurrency] = useState('USD');
-  const [paymentSession, setPaymentSession] = useState<PaymentSession | null>(null);
 
   useEffect(() => {
     if (!checkout || checkout.concertId !== id) {
@@ -52,10 +43,29 @@ export function CheckoutPage() {
       .getPaymentConfig()
       .then((res) => {
         setPaymentEnabled(res.data.enabled === true);
-        if (res.data.currency) setPaymentCurrency(res.data.currency);
       })
       .catch(() => setPaymentEnabled(false));
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('paypal') !== 'cancelled') return;
+
+    try {
+      const raw = sessionStorage.getItem('pendingPayPalOrder');
+      if (!raw) return;
+      const { orderId } = JSON.parse(raw) as { orderId?: string };
+      if (!orderId) return;
+
+      concertApi.cancelOrder(orderId).finally(() => {
+        sessionStorage.removeItem('pendingPayPalOrder');
+        localStorage.removeItem('pendingPayPalOrder');
+        navigate(location.pathname, { replace: true });
+      });
+    } catch {
+      navigate(location.pathname, { replace: true });
+    }
+  }, [location.pathname, location.search, navigate]);
 
   useEffect(() => {
     if (!checkout?.reservedUntil || !id) return;
@@ -65,6 +75,19 @@ export function CheckoutPage() {
       if (expired) return;
       expired = true;
       sessionStorage.removeItem('checkout');
+      const raw = sessionStorage.getItem('pendingPayPalOrder');
+      if (raw) {
+        try {
+          const { orderId } = JSON.parse(raw) as { orderId?: string };
+          if (orderId) {
+            concertApi.cancelOrder(orderId).catch(() => undefined);
+          }
+        } catch {
+          /* ignore */
+        }
+        sessionStorage.removeItem('pendingPayPalOrder');
+        localStorage.removeItem('pendingPayPalOrder');
+      }
       concertApi.releaseSeats(checkout.concertId).catch(() => undefined);
       navigate(`/concerts/${id}/seats`, {
         replace: true,
@@ -118,7 +141,7 @@ export function CheckoutPage() {
   };
 
   const startPayment = async () => {
-    if (!checkout || !id || paymentSession) return;
+    if (!checkout || !id || loading) return;
 
     if (paymentEnabled === false) {
       alert(
@@ -129,6 +152,7 @@ export function CheckoutPage() {
 
     setLoading(true);
     setProgress('Đang tạo đơn đặt vé...');
+    let redirecting = false;
     try {
       const orderRes = await concertApi.createOrder({
         concert_id: checkout.concertId,
@@ -141,38 +165,45 @@ export function CheckoutPage() {
 
       setProgress('Đang khởi tạo phiên PayPal...');
       const returnUrl = `${window.location.origin}/orders/paypal/return`;
-      const cancelUrl = `${window.location.origin}/concerts/${id}/checkout`;
+      const cancelUrl = `${window.location.origin}/concerts/${id}/checkout?paypal=cancelled`;
 
       const paymentRes = await concertApi.createPayPalOrder(orderRes.data.id!, {
         return_url: returnUrl,
         cancel_url: cancelUrl,
       });
 
-      const { paypal_order_id, client_id } = paymentRes.data;
+      const { paypal_order_id, approval_url, client_id } = paymentRes.data;
       const clientId = client_id || (await concertApi.getPaymentConfig()).data.client_id;
 
       if (!paypal_order_id || !clientId) {
         throw new Error('Phản hồi thanh toán không hợp lệ từ server.');
       }
 
-      setPaymentSession({
-        orderId: orderRes.data.id!,
-        paypalOrderId: paypal_order_id,
-        clientId,
-        currency: paymentRes.data.currency || paymentCurrency,
-      });
+      sessionStorage.setItem(
+        'pendingPayPalOrder',
+        JSON.stringify({ orderId: orderRes.data.id!, concertId: id })
+      );
+      localStorage.setItem(
+        'pendingPayPalOrder',
+        JSON.stringify({ orderId: orderRes.data.id!, concertId: id })
+      );
+
+      if (approval_url) {
+        redirecting = true;
+        setProgress('Đang chuyển đến PayPal Sandbox...');
+        window.location.assign(approval_url);
+        return;
+      }
+
+      throw new Error('Server không trả về liên kết PayPal. Kiểm tra cấu hình sandbox.');
     } catch (err) {
       alert(getApiErrorMessage(err));
     } finally {
-      setLoading(false);
-      setProgress(null);
+      if (!redirecting) {
+        setLoading(false);
+        setProgress(null);
+      }
     }
-  };
-
-  const handlePaymentSuccess = () => {
-    if (!paymentSession) return;
-    sessionStorage.removeItem('checkout');
-    navigate(`/orders/${paymentSession.orderId}/success`, { replace: true });
   };
 
   if (!checkout) return null;
@@ -202,9 +233,9 @@ export function CheckoutPage() {
                 value={voucherCode}
                 onChange={(e) => setVoucherCode(e.target.value)}
                 placeholder="DATN10, CONCERT20..."
-                disabled={!!paymentSession}
+                disabled={loading}
               />
-              <button type="submit" className="btn btn-outline" disabled={!!paymentSession}>
+              <button type="submit" className="btn btn-outline" disabled={loading}>
                 Áp dụng
               </button>
             </form>
@@ -218,7 +249,7 @@ export function CheckoutPage() {
                 type="radio"
                 checked={deliveryMethod === 'e_ticket'}
                 onChange={() => setDeliveryMethod('e_ticket')}
-                disabled={!!paymentSession}
+                disabled={loading}
               />
               Vé điện tử (miễn phí)
             </label>
@@ -227,7 +258,7 @@ export function CheckoutPage() {
                 type="radio"
                 checked={deliveryMethod === 'paper'}
                 onChange={() => setDeliveryMethod('paper')}
-                disabled={!!paymentSession}
+                disabled={loading}
               />
               Vé giấy (+30.000đ)
             </label>
@@ -236,7 +267,7 @@ export function CheckoutPage() {
                 type="checkbox"
                 checked={hasInsurance}
                 onChange={(e) => setHasInsurance(e.target.checked)}
-                disabled={!!paymentSession}
+                disabled={loading}
               />
               Bảo hiểm ghế (+50.000đ/ghế)
             </label>
@@ -283,24 +314,14 @@ export function CheckoutPage() {
             </>
           )}
 
-          {paymentSession ? (
-            <PayPalPaymentButtons
-              clientId={paymentSession.clientId}
-              currency={paymentSession.currency}
-              paypalOrderId={paymentSession.paypalOrderId}
-              orderId={paymentSession.orderId}
-              onSuccess={handlePaymentSuccess}
-            />
-          ) : (
-            <button
-              type="button"
-              className="btn btn-primary btn-block"
-              onClick={startPayment}
-              disabled={loading || paymentEnabled === false}
-            >
-              Tiếp tục thanh toán PayPal
-            </button>
-          )}
+          <button
+            type="button"
+            className="btn btn-primary btn-block"
+            onClick={startPayment}
+            disabled={loading || paymentEnabled === false}
+          >
+            Tiếp tục thanh toán PayPal
+          </button>
 
           {paymentEnabled === false ? (
             <p className="payment-config-warning">

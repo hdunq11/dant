@@ -9,6 +9,7 @@ import {
   IconPlus,
   IconSeat,
   IconTicket,
+  IconVenue,
 } from '../../components/portal/PortalIcons';
 import '../admin/admin.css';
 import './organizer.css';
@@ -18,6 +19,7 @@ const NAV = [
   { to: '/organizer/concerts', label: 'My Concerts', icon: IconConcert },
   { to: '/organizer/concerts/create', label: 'Create Concert', icon: IconPlus },
   { to: '/organizer/seatmap', label: 'Seat Map', icon: IconSeat },
+  { to: '/organizer/stage', label: 'Sân khấu', icon: IconVenue },
   { to: '/organizer/tickets', label: 'Tickets', icon: IconTicket },
   { to: '/organizer/orders', label: 'Orders', icon: IconOrder },
   { to: '/organizer/statistics', label: 'Statistics', icon: IconChart },

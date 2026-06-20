@@ -55,7 +55,6 @@ export function ProfilePage() {
 
   return (
     <ProfileShell
-      active="profile"
       title={`Xin chào ${firstName},`}
       subtitle="Tại đây bạn có thể xem và chỉnh sửa thông tin tài khoản."
     >
@@ -143,7 +142,7 @@ export function InfoPage({ kind }: { kind: 'payment' | 'terms' }) {
       : 'Quy định sử dụng dịch vụ đặt vé concert.';
 
   return (
-    <ProfileShell active={kind === 'payment' ? 'payment' : 'terms'} title={title} subtitle={subtitle}>
+    <ProfileShell title={title} subtitle={subtitle}>
       <div className="profile-info">
         {content.split('\n').map((line, i) => (
           <p key={i}>{line}</p>

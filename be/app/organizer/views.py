@@ -10,11 +10,17 @@ from app.concerts.models import Concert
 from app.orders.models import Order, OrderItem
 from app.seats.models import ConcertSeat, Seat, SeatZone
 from app.seats.reservation import release_expired_reservations, serialize_map_seat
+from app.orders.seat_lifecycle import cancel_stale_pending_orders, reconcile_concert_seats
 from app.seats.seat_grid import (
     DEFAULT_AISLE_AFTER,
     DEFAULT_SEATS_PER_ROW,
     default_row_labels,
     seat_pos_2d,
+)
+from app.seats.stage_templates import (
+    STAGE_TEMPLATES,
+    apply_stage_template,
+    serialize_venue_preview_seatmap,
 )
 from app.venues.models import Venue
 
@@ -142,6 +148,8 @@ class OrganizerConcertViewSet(viewsets.ModelViewSet):
                 ignore_conflicts=True,
             )
         release_expired_reservations(concert)
+        cancel_stale_pending_orders(concert)
+        reconcile_concert_seats(concert)
         seatmap = []
         for zone in concert.venue.seat_zones.all():
             seats = ConcertSeat.objects.filter(
@@ -185,6 +193,42 @@ class OrganizerVenueViewSet(viewsets.ModelViewSet):
         if venue.organizer_id != request.user.id:
             return Response({'error': 'Chỉ xóa được địa điểm do bạn tạo.'}, status=403)
         return super().destroy(request, *args, **kwargs)
+
+    @action(detail=False, methods=['get'])
+    def stage_templates(self, request):
+        templates = []
+        for template_id, meta in STAGE_TEMPLATES.items():
+            templates.append({
+                'id': template_id,
+                'label': meta['label'],
+                'description': meta['description'],
+                'capacity': meta['capacity'],
+                'model_glb_path': meta['model_glb_path'],
+            })
+        return Response(templates)
+
+    @action(detail=True, methods=['post'])
+    def apply_stage_template(self, request, pk=None):
+        venue = self.get_object()
+        if venue.organizer_id != request.user.id:
+            return Response({'error': 'Chỉ áp template cho venue của bạn.'}, status=403)
+        template_id = request.data.get('template_id')
+        if not template_id:
+            return Response({'error': 'Thiếu template_id.'}, status=400)
+        try:
+            result = apply_stage_template(venue, template_id)
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=400)
+        return Response(result)
+
+    @action(detail=True, methods=['get'])
+    def preview_seatmap(self, request, pk=None):
+        venue = self.get_object()
+        if venue.organizer_id != request.user.id:
+            return Response({'error': 'Không có quyền.'}, status=403)
+        if not Seat.objects.filter(venue=venue).exists():
+            return Response({'error': 'Venue chưa có ghế — hãy áp template sân khấu trước.'}, status=400)
+        return Response(serialize_venue_preview_seatmap(venue))
 
 
 class OrganizerSeatZoneViewSet(viewsets.ModelViewSet):

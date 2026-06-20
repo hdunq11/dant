@@ -9,6 +9,7 @@ import { formatDateTime, formatVnd } from '../utils/format';
 import { layoutSeatMapZones } from '../utils/seatMapLayout';
 import { layoutStage1SeatMapZones } from '../utils/seatMapLayoutStage1';
 import { isStage1Auditorium, isStage1VenueModel } from '../utils/stage1SeatGrid';
+import { getSeatDisplayColor, resolveZoneColor, SEAT_STATUS_COLORS } from '../utils/zoneColors';
 import './SeatSelectionPage.css';
 
 interface SeatLocationState {
@@ -45,7 +46,7 @@ export function SeatSelectionPage() {
       setConcert(detailRes.data);
       const z = mapRes.data.zones ?? [];
       setZones(z);
-      if (z.length) setActiveZoneId(z[0].zone_id ?? null);
+      setActiveZoneId(null);
     } catch (e) {
       setError(getApiErrorMessage(e));
     } finally {
@@ -170,13 +171,20 @@ export function SeatSelectionPage() {
           <div className="price-row">
             <span className="price-row__label">Giá vé:</span>
             <div className="price-pills">
-              {zones.map((z) => (
+              {zones.map((z, index) => (
                 <button
                   key={z.zone_id}
                   type="button"
                   className={`price-pill ${z.zone_id === activeZoneId ? 'active' : ''}`}
-                  onClick={() => setActiveZoneId(z.zone_id ?? null)}
+                  onClick={() =>
+                    setActiveZoneId((prev) => (prev === z.zone_id ? null : (z.zone_id ?? null)))
+                  }
                 >
+                  <span
+                    className="price-pill__swatch"
+                    style={{ background: resolveZoneColor(z.color, index) }}
+                    aria-hidden
+                  />
                   <strong>{formatVnd(z.price)}</strong>
                   <span>{z.name}</span>
                 </button>
@@ -220,7 +228,6 @@ export function SeatSelectionPage() {
                       <div className="zone-block__seats">
                         {layout.seats.map((seat) => {
                           const picked = selected.some((s) => s.seatId === seat.seatId);
-                          const zoneMatch = !activeZoneId || seat.zoneId === activeZoneId;
                           const label =
                             seat.globalNumber != null
                               ? `#${seat.globalNumber}`
@@ -230,8 +237,17 @@ export function SeatSelectionPage() {
                               key={seat.seatId}
                               type="button"
                               title={`${seat.zoneName} · ${label}`}
-                              className={`${seatClass(seat.status, picked, seat.reservedByMe)}${zoneMatch ? '' : ' arena-seat--dim'}`}
-                              style={{ left: seat.x - layout.x, top: seat.y - layout.y }}
+                              className={seatClass(seat.status, picked, seat.reservedByMe)}
+                              style={{
+                                left: seat.x - layout.x,
+                                top: seat.y - layout.y,
+                                color: getSeatDisplayColor(
+                                  seat.status,
+                                  picked,
+                                  seat.reservedByMe,
+                                  seat.zoneColor
+                                ),
+                              }}
                               onClick={() =>
                                 toggleSeat(
                                   {
@@ -269,10 +285,27 @@ export function SeatSelectionPage() {
           </div>
 
           <div className="legend">
-            <span><i className="dot available" /> Trống</span>
-            <span><i className="dot selected" /> Đã chọn</span>
-            <span><i className="dot reserved" /> Giữ chỗ</span>
-            <span><i className="dot sold" /> Đã bán</span>
+            {zones.map((z, index) => (
+              <span key={z.zone_id}>
+                <i
+                  className="dot zone"
+                  style={{ background: resolveZoneColor(z.color, index) }}
+                />
+                {z.name}
+              </span>
+            ))}
+            <span>
+              <i className="dot selected" style={{ background: SEAT_STATUS_COLORS.selected }} />
+              Đã chọn
+            </span>
+            <span>
+              <i className="dot reserved" style={{ background: SEAT_STATUS_COLORS.reserved }} />
+              Đang giữ
+            </span>
+            <span>
+              <i className="dot sold" style={{ background: SEAT_STATUS_COLORS.sold }} />
+              Đã bán
+            </span>
           </div>
         </div>
 

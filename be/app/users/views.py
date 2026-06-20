@@ -10,6 +10,50 @@ from app.behaviors.models import Favorite
 from app.orders.models import Order
 
 
+def _serialize_user_order(order, user=None, *, detailed=False):
+    concert = order.concert
+    venue = concert.venue if concert else None
+    data = {
+        'id': str(order.id),
+        'concert_id': str(concert.id) if concert else None,
+        'concert_title': concert.title if concert else None,
+        'concert_banner_url': concert.banner_url if concert else None,
+        'concert_venue_name': venue.name if venue else None,
+        'concert_city': venue.city if venue else None,
+        'concert_venue_address': venue.address if venue else None,
+        'concert_start_time': concert.start_time.isoformat() if concert and concert.start_time else None,
+        'concert_end_time': concert.end_time.isoformat() if concert and concert.end_time else None,
+        'seat_subtotal': float(getattr(order, 'seat_subtotal', 0) or 0),
+        'booking_fee': float(getattr(order, 'booking_fee', 0) or 0),
+        'delivery_fee': float(getattr(order, 'delivery_fee', 0) or 0),
+        'insurance_fee': float(getattr(order, 'insurance_fee', 0) or 0),
+        'discount_amount': float(getattr(order, 'discount_amount', 0) or 0),
+        'voucher_code': order.voucher_code,
+        'delivery_method': order.delivery_method,
+        'has_insurance': order.has_insurance,
+        'payment_method': order.payment_method,
+        'total_price': float(order.total_price),
+        'status': order.status,
+        'created_at': order.created_at.isoformat(),
+    }
+    if detailed and user:
+        data['recipient_name'] = user.full_name or ''
+        data['recipient_email'] = user.email or ''
+        data['items'] = []
+        for item in order.items.select_related('seat', 'seat__zone').all():
+            seat = item.seat
+            zone_name = seat.zone.name if seat.zone else 'Ghế'
+            data['items'].append({
+                'id': str(item.id),
+                'price': float(item.price),
+                'row': seat.row_label,
+                'number': seat.seat_number,
+                'zone_name': zone_name,
+                'label': f'{zone_name} · Hàng {seat.row_label} · Ghế {seat.seat_number}',
+            })
+    return data
+
+
 class UserRegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserRegisterSerializer
@@ -147,25 +191,22 @@ class UserOrdersView(generics.ListAPIView):
         queryset = self.get_queryset()
         orders = []
         for order in queryset.select_related('concert', 'concert__venue'):
-            concert = order.concert
-            venue = concert.venue if concert else None
-            orders.append({
-                'id': str(order.id),
-                'concert_title': concert.title if concert else None,
-                'concert_venue_name': venue.name if venue else None,
-                'concert_city': venue.city if venue else None,
-                'concert_start_time': concert.start_time.isoformat() if concert and concert.start_time else None,
-                'concert_end_time': concert.end_time.isoformat() if concert and concert.end_time else None,
-                'seat_subtotal': float(getattr(order, 'seat_subtotal', 0) or 0),
-                'booking_fee': float(getattr(order, 'booking_fee', 0) or 0),
-                'delivery_fee': float(getattr(order, 'delivery_fee', 0) or 0),
-                'insurance_fee': float(getattr(order, 'insurance_fee', 0) or 0),
-                'discount_amount': float(getattr(order, 'discount_amount', 0) or 0),
-                'voucher_code': order.voucher_code,
-                'delivery_method': order.delivery_method,
-                'payment_method': order.payment_method,
-                'total_price': float(order.total_price),
-                'status': order.status,
-                'created_at': order.created_at.isoformat(),
-            })
+            orders.append(_serialize_user_order(order))
         return Response(orders)
+
+
+class UserOrderDetailView(generics.RetrieveAPIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, order_id):
+        order = (
+            Order.objects.filter(user=request.user, id=order_id)
+            .select_related('concert', 'concert__venue')
+            .prefetch_related('items__seat__zone')
+            .first()
+        )
+        if not order:
+            return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
+        if order.status != 'paid':
+            return Response({'error': 'Order is not available'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(_serialize_user_order(order, request.user, detailed=True))

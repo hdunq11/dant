@@ -1,0 +1,130 @@
+.organizer-stage-viewer--2d .organizer-stage-viewer__toolbar {
+  flex-wrap: wrap;
+}
+
+.organizer-stage-viewer__meta {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.organizer-stage-2d-zones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.organizer-stage-2d-zone-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f8fafc;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.organizer-stage-2d-zone-pill i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.organizer-stage-2d-arena {
+  position: relative;
+}
+
+.organizer-stage-2d-viewport {
+  overflow: auto;
+  max-height: min(70vh, 680px);
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: #f8fafc;
+  padding: 16px;
+}
+
+.organizer-stage-2d-canvas {
+  position: relative;
+  margin: 0 auto;
+}
+
+.organizer-stage-2d-stage {
+  margin: 0 auto 12px;
+  max-width: 280px;
+  padding: 10px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #312e81, #4338ca);
+  color: #e0e7ff;
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.organizer-stage-2d-block {
+  position: absolute;
+}
+
+.organizer-stage-2d-seats {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.organizer-stage-2d-seat {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+
+.organizer-stage-2d-seat:hover {
+  transform: scale(1.15);
+  z-index: 2;
+}
+
+.organizer-stage-2d-seat--active {
+  transform: scale(1.2);
+  z-index: 3;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--primary);
+}
+
+.organizer-stage-2d-seat--muted {
+  opacity: 0.28;
+  cursor: not-allowed;
+}
+
+.organizer-stage-2d-seat--muted:hover {
+  transform: none;
+}
+
+.organizer-stage-2d-zoom {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.organizer-stage-2d-zoom button {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #fff;
+  font-size: 1.1rem;
+  cursor: pointer;
+}

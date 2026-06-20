@@ -1,0 +1,49 @@
+.ticket-qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.ticket-qr__canvas {
+  padding: 12px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+.ticket-qr__code {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-primary);
+}
+
+.ticket-qr__hint {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.ticket-qr--compact {
+  gap: 6px;
+}
+
+.ticket-qr--compact .ticket-qr__canvas {
+  padding: 8px;
+  border-radius: 10px;
+  box-shadow: none;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.ticket-qr--compact .ticket-qr__code {
+  font-size: 0.78rem;
+}
+
+.ticket-qr--compact .ticket-qr__hint {
+  font-size: 0.72rem;
+  max-width: 120px;
+  line-height: 1.35;
+}

@@ -7,6 +7,7 @@ from .models import Concert, ConcertArtist
 from .serializers import ConcertSerializer
 from app.seats.models import ConcertSeat, Seat
 from app.seats.reservation import release_expired_reservations, serialize_map_seat
+from app.orders.seat_lifecycle import cancel_stale_pending_orders, reconcile_concert_seats
 
 
 class ConcertViewSet(viewsets.ModelViewSet):
@@ -93,6 +94,8 @@ class ConcertViewSet(viewsets.ModelViewSet):
         concert = self.get_object()
         self._ensure_concert_seats(concert)
         release_expired_reservations(concert)
+        cancel_stale_pending_orders(concert)
+        reconcile_concert_seats(concert)
         zones = concert.venue.seat_zones.all()
 
         seatmap = []

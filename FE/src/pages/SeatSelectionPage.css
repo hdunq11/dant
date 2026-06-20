@@ -52,12 +52,24 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
-  padding: 8px 16px;
+  padding: 8px 16px 8px 28px;
   border-radius: 10px;
   border: 1px solid #d8dce8;
   background: #fff;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  position: relative;
+}
+
+.price-pill__swatch {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
 }
 
 .price-pill strong {
@@ -162,30 +174,24 @@
   border: none;
   background: transparent;
   cursor: pointer;
-  color: #b8c5f2;
-  transition: color 0.12s, transform 0.12s;
+  transition: color 0.12s, transform 0.12s, opacity 0.12s;
 }
 
 .arena-seat:hover:not(:disabled) {
   transform: scale(1.15);
 }
 
-.arena-seat--available {
-  color: #b8c5f2;
-}
-
 .arena-seat--selected {
-  color: #ef4444;
+  filter: drop-shadow(0 0 2px rgba(239, 68, 68, 0.45));
 }
 
 .arena-seat--reserved {
-  color: #3949ab;
   cursor: not-allowed;
 }
 
 .arena-seat--sold {
-  color: #c5c9d4;
   cursor: not-allowed;
+  opacity: 0.72;
 }
 
 .arena-seat--dim {
@@ -247,22 +253,7 @@
   border-radius: 4px;
   margin-right: 6px;
   vertical-align: middle;
-}
-
-.dot.available {
-  background: #b8c5f2;
-}
-
-.dot.selected {
-  background: #ef4444;
-}
-
-.dot.reserved {
-  background: #3949ab;
-}
-
-.dot.sold {
-  background: #c5c9d4;
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 /* Sidebar */

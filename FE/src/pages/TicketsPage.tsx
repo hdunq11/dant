@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { concertApi } from '../api/concertApi';
 import { EmptyState } from '../components/EmptyState';
 import { ProfileShell } from '../components/ProfileShell';
@@ -6,20 +7,59 @@ import { Spinner } from '../components/Spinner';
 import { getApiErrorMessage } from '../context/AuthContext';
 import type { Order } from '../types';
 import { extractList } from '../utils/apiData';
-import { formatDateTime, formatVnd, orderStatusLabel } from '../utils/format';
+import {
+  formatConcertTimeRange,
+  formatTicketDay,
+  formatTicketMonthYear,
+  formatVnd,
+  isConcertEnded,
+} from '../utils/format';
 import './TicketsPage.css';
+
+type TicketTab = 'upcoming' | 'past';
+
+function TicketCard({ order }: { order: Order }) {
+  const when = order.concert_start_time;
+  const venueLine = [order.concert_venue_name, order.concert_city].filter(Boolean).join(', ');
+
+  return (
+    <Link to={`/tickets/${order.id}`} className="ticket-card">
+      <div className="ticket-card__date">
+        <strong>{formatTicketDay(when)}</strong>
+        <span>{formatTicketMonthYear(when)}</span>
+      </div>
+
+      <div className="ticket-card__info">
+        <h3>{order.concert_title ?? 'Concert'}</h3>
+        <div className="ticket-card__tags">
+          <span className="ticket-tag ticket-tag--ok">Thành công</span>
+          <span className="ticket-tag">Vé điện tử</span>
+        </div>
+        <p className="ticket-card__line">
+          Mã đơn · #{order.id?.slice(0, 8).toUpperCase()}
+        </p>
+        <p className="ticket-card__line">{formatConcertTimeRange(when, order.concert_end_time)}</p>
+        {venueLine ? <p className="ticket-card__line ticket-card__line--muted">{venueLine}</p> : null}
+        <p className="ticket-card__price">{formatVnd(order.total_price)}</p>
+      </div>
+
+      <div className="ticket-card__chevron" aria-hidden="true">›</div>
+    </Link>
+  );
+}
 
 export function TicketsPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<TicketTab>('upcoming');
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await concertApi.getMyOrders();
-      setOrders(extractList<Order>(res.data));
+      setOrders(extractList<Order>(res.data).filter((o) => o.status === 'paid'));
     } catch (e) {
       setError(getApiErrorMessage(e));
     } finally {
@@ -31,72 +71,74 @@ export function TicketsPage() {
     load();
   }, [load]);
 
-  const cancel = async (id: string) => {
-    if (!confirm('Hủy đơn chờ thanh toán?')) return;
-    try {
-      await concertApi.cancelOrder(id);
-      load();
-    } catch (e) {
-      alert(getApiErrorMessage(e));
+  const { upcoming, past } = useMemo(() => {
+    const upcomingOrders: Order[] = [];
+    const pastOrders: Order[] = [];
+    for (const o of orders) {
+      if (isConcertEnded(o.concert_start_time, o.concert_end_time)) {
+        pastOrders.push(o);
+      } else {
+        upcomingOrders.push(o);
+      }
     }
-  };
+    upcomingOrders.sort(
+      (a, b) =>
+        new Date(a.concert_start_time ?? 0).getTime() - new Date(b.concert_start_time ?? 0).getTime()
+    );
+    pastOrders.sort(
+      (a, b) =>
+        new Date(b.concert_start_time ?? 0).getTime() - new Date(a.concert_start_time ?? 0).getTime()
+    );
+    return { upcoming: upcomingOrders, past: pastOrders };
+  }, [orders]);
+
+  const visible = tab === 'upcoming' ? upcoming : past;
 
   return (
-    <ProfileShell
-      active="tickets"
-      title="Vé của tôi"
-      subtitle="Theo dõi trạng thái và chi tiết các đơn đặt vé của bạn."
-    >
+    <ProfileShell title="Vé của tôi" subtitle="Vé điện tử đã thanh toán.">
       {error ? <div className="alert alert-error">{error}</div> : null}
+
+      <div className="ticket-tabs" role="tablist" aria-label="Lọc vé theo thời gian">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'upcoming'}
+          className={`ticket-tabs__btn ${tab === 'upcoming' ? 'active' : ''}`}
+          onClick={() => setTab('upcoming')}
+        >
+          Sắp diễn ra
+          {upcoming.length ? <span className="ticket-tabs__count">{upcoming.length}</span> : null}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'past'}
+          className={`ticket-tabs__btn ${tab === 'past' ? 'active' : ''}`}
+          onClick={() => setTab('past')}
+        >
+          Đã kết thúc
+          {past.length ? <span className="ticket-tabs__count">{past.length}</span> : null}
+        </button>
+      </div>
+
       {loading ? (
         <Spinner />
-      ) : orders.length ? (
-        <div className="order-list">
-          {orders.map((o) => (
-            <article key={o.id} className="order-card">
-              <div className="order-card__head">
-                <div>
-                  <span className="order-card__id">#{o.id?.slice(0, 8).toUpperCase()}</span>
-                  <h3>{o.concert_title ?? 'Concert'}</h3>
-                  <p>{formatDateTime(o.created_at)}</p>
-                </div>
-                <span className={`order-status order-status--${o.status}`}>{orderStatusLabel(o.status)}</span>
-              </div>
-
-              <div className="order-card__body">
-                <div className="order-block">
-                  <h4>Thanh toán</h4>
-                  <p>{o.payment_method ?? 'Chưa xác định'}</p>
-                  {o.delivery_method ? <p>Giao vé: {o.delivery_method}</p> : null}
-                </div>
-                <div className="order-block">
-                  <h4>Chi phí</h4>
-                  {o.seat_subtotal != null ? <p>Ghế: {formatVnd(o.seat_subtotal)}</p> : null}
-                  {o.booking_fee ? <p>Phí đặt chỗ: {formatVnd(o.booking_fee)}</p> : null}
-                  {o.discount_amount ? <p>Giảm giá: −{formatVnd(o.discount_amount)}</p> : null}
-                  <p className="order-total">Tổng: <strong>{formatVnd(o.total_price)}</strong></p>
-                </div>
-              </div>
-
-              <div className="order-card__foot">
-                {o.status === 'paid' && (
-                  <span className="order-qr">Mã vé · {o.id?.slice(0, 12)}</span>
-                )}
-                {o.status === 'pending' && (
-                  <button type="button" className="btn btn-danger btn-sm" onClick={() => cancel(o.id!)}>
-                    Hủy đơn
-                  </button>
-                )}
-              </div>
-            </article>
+      ) : visible.length ? (
+        <div className="ticket-list">
+          {visible.map((o) => (
+            <TicketCard key={o.id} order={o} />
           ))}
         </div>
       ) : (
         <EmptyState
           icon="ticket"
-          title="Chưa có vé nào"
-          description="Khám phá concert yêu thích, chọn ghế và thanh toán — vé điện tử sẽ hiện tại đây."
-          action={{ label: 'Khám phá concert', to: '/' }}
+          title={tab === 'upcoming' ? 'Chưa có vé sắp diễn ra' : 'Chưa có vé đã kết thúc'}
+          description={
+            tab === 'upcoming'
+              ? 'Đặt vé concert yêu thích — vé sắp diễn ra sẽ hiện tại đây.'
+              : 'Các show đã qua sẽ được lưu trong mục này.'
+          }
+          action={tab === 'upcoming' ? { label: 'Khám phá concert', to: '/' } : undefined}
         />
       )}
     </ProfileShell>

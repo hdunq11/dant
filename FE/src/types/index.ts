@@ -116,6 +116,10 @@ export interface OrderItem {
   id?: string;
   seat?: { row_label?: string; seat_number?: number; zone?: { name?: string } };
   price?: number;
+  row?: string;
+  number?: number;
+  zone_name?: string;
+  label?: string;
 }
 
 export interface Order {
@@ -128,10 +132,20 @@ export interface Order {
   discount_amount?: number;
   voucher_code?: string;
   delivery_method?: string;
+  has_insurance?: boolean;
   payment_method?: string;
   status?: string;
   created_at?: string;
+  concert_id?: string;
   concert_title?: string;
+  concert_banner_url?: string;
+  concert_venue_name?: string;
+  concert_city?: string;
+  concert_venue_address?: string;
+  concert_start_time?: string;
+  concert_end_time?: string;
+  recipient_name?: string;
+  recipient_email?: string;
   items?: OrderItem[];
 }
 

@@ -1,4 +1,5 @@
 import type { SeatMapSeat, SeatMapZone } from '../types';
+import { resolveZoneColor } from './zoneColors';
 import { isGltfSeatCoords } from './seatMap3D';
 import { globalSeatNumber, seatPos2D, VENUE_ROW_COUNT, VENUE_SEATS_PER_ROW } from './seatGrid';
 
@@ -20,6 +21,7 @@ export interface LayoutSeat {
   status?: string;
   selectable?: boolean;
   reservedByMe?: boolean;
+  zoneColor?: string;
   x: number;
   y: number;
 }
@@ -63,15 +65,17 @@ function layoutAuditorium(zones: SeatMapZone[]): { zoneLayouts: ZoneLayout[]; ca
   const raw: Array<{
     seat: SeatMapSeat;
     zone: SeatMapZone;
+    zoneIndex: number;
     coord: { x: number; y: number };
   }> = [];
 
-  for (const zone of zones) {
+  for (let zoneIndex = 0; zoneIndex < zones.length; zoneIndex++) {
+    const zone = zones[zoneIndex];
     for (const seat of zone.seats ?? []) {
       const row = (seat.row ?? 'A').trim().toUpperCase();
       const global = globalSeatNumber(row, seat.number ?? 1);
       const rowIdx = global != null ? Math.floor((global - 1) / VENUE_SEATS_PER_ROW) : 0;
-      raw.push({ seat, zone, coord: seatCoord(seat, rowIdx) });
+      raw.push({ seat, zone, zoneIndex, coord: seatCoord(seat, rowIdx) });
     }
   }
 
@@ -95,7 +99,7 @@ function layoutAuditorium(zones: SeatMapZone[]): { zoneLayouts: ZoneLayout[]; ca
   const originX = (CANVAS_W - blockW) / 2;
   const originY = STAGE_GAP + 36;
 
-  const seats: LayoutSeat[] = raw.map(({ seat, zone, coord }) => {
+  const seats: LayoutSeat[] = raw.map(({ seat, zone, zoneIndex, coord }) => {
     const row = seat.row ?? '';
     const num = seat.number ?? 0;
     return {
@@ -109,6 +113,7 @@ function layoutAuditorium(zones: SeatMapZone[]): { zoneLayouts: ZoneLayout[]; ca
       status: seat.status,
       selectable: seat.selectable ?? (seat.status !== 'sold' && seat.status !== 'reserved'),
       reservedByMe: seat.reserved_by_me,
+      zoneColor: resolveZoneColor(zone.color, zoneIndex),
       x: originX + (coord.x - minX) * scale,
       y: originY + (coord.y - minY) * scale,
     };
@@ -181,6 +186,7 @@ function layoutOneZone(zone: SeatMapZone, index: number): ZoneLayout | null {
       status: seat.status,
       selectable: seat.selectable ?? (seat.status !== 'sold' && seat.status !== 'reserved'),
       reservedByMe: seat.reserved_by_me,
+      zoneColor: resolveZoneColor(zone.color, index),
       x: originX + (c.x - minX) * scale,
       y: originY + (c.y - minY) * scale,
     };

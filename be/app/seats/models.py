@@ -51,7 +51,7 @@ class ConcertSeat(models.Model):
     concert = models.ForeignKey(Concert, on_delete=models.CASCADE, related_name='concert_seats')
     seat = models.ForeignKey(Seat, on_delete=models.CASCADE)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='available')
-    reserved_until = models.DateTimeField(null=True, blank=True)  # for reservation timeout
+    reserved_until = models.DateTimeField(null=True, blank=True)  # TTL giữ chỗ 10 phút; trạng thái hiển thị tính real-time
     reserved_by = models.ForeignKey(
         'users.User',
         on_delete=models.SET_NULL,

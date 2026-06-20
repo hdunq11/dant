@@ -12,7 +12,9 @@ from .seat_grid import (
 from .serializers import SeatZoneSerializer, SeatSerializer
 from app.concerts.models import Concert
 from .reservation import (
+    effective_seat_status,
     hold_until,
+    is_active_reservation,
     release_expired_reservations,
     release_user_reservations,
 )
@@ -100,19 +102,14 @@ class ConcertSeatViewSet(viewsets.ViewSet):
             try:
                 concert_seat = ConcertSeat.objects.get(concert=concert, seat_id=seat_id)
 
-                if concert_seat.status == 'sold':
+                seat_status = effective_seat_status(concert_seat)
+                if seat_status == 'sold':
                     return Response(
                         {'error': f'Seat {seat_id} is not available'},
                         status=status.HTTP_400_BAD_REQUEST
                     )
 
-                if concert_seat.status == 'reserved':
-                    if concert_seat.reserved_by_id != request.user.id:
-                        return Response(
-                            {'error': f'Seat {seat_id} is not available'},
-                            status=status.HTTP_400_BAD_REQUEST
-                        )
-                elif concert_seat.status != 'available':
+                if seat_status == 'reserved' and concert_seat.reserved_by_id != request.user.id:
                     return Response(
                         {'error': f'Seat {seat_id} is not available'},
                         status=status.HTTP_400_BAD_REQUEST

@@ -7,6 +7,7 @@ import { AuthProvider } from './context/AuthContext';
 import { LoginPage, RegisterPage } from './pages/AuthPages';
 import { OrganizerPendingPage } from './pages/OrganizerPendingPage';
 import { CheckoutPage } from './pages/CheckoutPage';
+import { PayPalReturnPage } from './pages/PayPalReturnPage';
 import { ConcertDetailPage } from './pages/ConcertDetailPage';
 import { ConfirmationPage } from './pages/ConfirmationPage';
 import { FavoritesPage } from './pages/FavoritesPage';
@@ -14,6 +15,7 @@ import { HomePage } from './pages/HomePage';
 import { EditProfilePage, InfoPage, ProfilePage } from './pages/ProfilePage';
 import { SeatSelectionPage } from './pages/SeatSelectionPage';
 import { TicketsPage } from './pages/TicketsPage';
+import { TicketDetailPage } from './pages/TicketDetailPage';
 
 const VrPreviewPage = lazy(() =>
   import('./pages/VrPreviewPage').then((m) => ({ default: m.VrPreviewPage }))
@@ -42,6 +44,7 @@ import { OrganizerCreateConcertPage } from './pages/organizer/OrganizerCreateCon
 import { OrganizerSeatMapPage } from './pages/organizer/OrganizerSeatMapPage';
 import { OrganizerTicketsPage } from './pages/organizer/OrganizerTicketsPage';
 import { OrganizerOrdersPage } from './pages/organizer/OrganizerOrdersPage';
+import { OrganizerStagePage } from './pages/organizer/OrganizerStagePage';
 import { OrganizerStatisticsPage } from './pages/organizer/OrganizerStatisticsPage';
 import { VrExperienceV2 } from './components/vr/VrExperienceV2';
 
@@ -92,6 +95,14 @@ export default function App() {
                 }
               />
               <Route
+                path="orders/paypal/return"
+                element={
+                  <FanProtectedRoute>
+                    <PayPalReturnPage />
+                  </FanProtectedRoute>
+                }
+              />
+              <Route
                 path="orders/:orderId/success"
                 element={
                   <FanProtectedRoute>
@@ -104,6 +115,14 @@ export default function App() {
                 element={
                   <FanProtectedRoute>
                     <TicketsPage />
+                  </FanProtectedRoute>
+                }
+              />
+              <Route
+                path="tickets/:orderId"
+                element={
+                  <FanProtectedRoute>
+                    <TicketDetailPage />
                   </FanProtectedRoute>
                 }
               />
@@ -196,6 +215,7 @@ export default function App() {
             <Route path="concerts" element={<OrganizerConcertsPage />} />
             <Route path="concerts/create" element={<OrganizerCreateConcertPage />} />
             <Route path="seatmap" element={<OrganizerSeatMapPage />} />
+            <Route path="stage" element={<OrganizerStagePage />} />
             <Route path="tickets" element={<OrganizerTicketsPage />} />
             <Route path="orders" element={<OrganizerOrdersPage />} />
             <Route path="statistics" element={<OrganizerStatisticsPage />} />

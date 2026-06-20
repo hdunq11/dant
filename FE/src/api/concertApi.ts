@@ -98,7 +98,13 @@ export const concertApi = {
   payOrder: (id: string, paypalOrderId: string) =>
     api.post(`api/orders/orders/${id}/pay/`, { paypal_order_id: paypalOrderId }),
 
+  completePayPal: (body: { token: string; order_id?: string }) =>
+    api.post<{ message?: string; order?: Order }>('api/orders/paypal/complete/', body),
+
   cancelOrder: (id: string) => api.post(`api/orders/orders/${id}/cancel/`),
 
   getMyOrders: () => api.get<Order[]>('api/users/me/orders/'),
+
+  getMyOrderDetail: (orderId: string) =>
+    api.get<Order>(`api/users/me/orders/${orderId}/`),
 };

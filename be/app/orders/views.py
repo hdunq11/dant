@@ -1,5 +1,4 @@
 from django.conf import settings
-from django.utils import timezone
 from rest_framework import viewsets, generics, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -19,9 +18,51 @@ from .serializers import (
     VoucherSerializer,
 )
 from .pricing import calculate_order_pricing, get_voucher_discount
-from app.seats.reservation import release_expired_reservations
+from app.seats.reservation import effective_seat_status, is_active_reservation, release_expired_reservations
 from app.concerts.models import Concert
 from app.seats.models import ConcertSeat, Seat
+from .seat_lifecycle import (
+    cancel_stale_pending_orders,
+    extend_order_reservations,
+    mark_order_seats_sold,
+    release_order_seats,
+)
+
+
+def _finalize_paypal_payment(order: Order, paypal_order_id: str) -> Response:
+    if order.status == 'paid':
+        return Response(
+            {'message': 'Payment successful', 'order': OrderSerializer(order).data},
+            status=status.HTTP_200_OK,
+        )
+
+    if order.status != 'pending':
+        return Response({'error': 'Order is not pending'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        is_valid, error_message = capture_and_verify_paypal_order(order, paypal_order_id)
+    except PayPalNotConfiguredError as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    except Exception as exc:
+        return Response(
+            {'error': f'Xác minh thanh toán thất bại: {exc}'},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
+
+    if not is_valid:
+        return Response({'error': error_message}, status=status.HTTP_400_BAD_REQUEST)
+
+    order.paypal_order_id = paypal_order_id
+    order.payment_method = 'paypal'
+    order.status = 'paid'
+    order.save()
+
+    mark_order_seats_sold(order)
+
+    return Response(
+        {'message': 'Payment successful', 'order': OrderSerializer(order).data},
+        status=status.HTTP_200_OK,
+    )
 
 
 class PaymentConfigView(APIView):
@@ -81,6 +122,34 @@ class VoucherAdminViewSet(viewsets.ModelViewSet):
         return [IsAdminUser()]
 
 
+class PayPalCompleteView(APIView):
+    """Hoàn tất thanh toán sau redirect PayPal — tìm đơn theo token PayPal."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        paypal_order_id = request.data.get('token') or request.data.get('paypal_order_id')
+        order_id = request.data.get('order_id')
+
+        if not paypal_order_id:
+            return Response({'error': 'token is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        order = None
+        if order_id:
+            order = Order.objects.filter(id=order_id, user=request.user).first()
+        if order is None:
+            order = Order.objects.filter(
+                paypal_order_id=paypal_order_id,
+                user=request.user,
+            ).first()
+        if order is None:
+            return Response(
+                {'error': 'Không tìm thấy đơn hàng cho phiên PayPal này'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return _finalize_paypal_payment(order, paypal_order_id)
+
+
 class OrderViewSet(viewsets.ModelViewSet):
     serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]
@@ -117,6 +186,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Concert not found'}, status=status.HTTP_404_NOT_FOUND)
 
         release_expired_reservations(concert)
+        cancel_stale_pending_orders(concert)
 
         seat_subtotal = Decimal('0')
         concert_seats = []
@@ -126,9 +196,9 @@ class OrderViewSet(viewsets.ModelViewSet):
                 seat = Seat.objects.select_related('zone').get(id=seat_id)
                 concert_seat = ConcertSeat.objects.get(concert=concert, seat=seat)
 
-                if concert_seat.status != 'reserved':
+                if not is_active_reservation(concert_seat):
                     return Response(
-                        {'error': f'Seat {seat_id} is not reserved'},
+                        {'error': f'Seat {seat_id} reservation expired or not held'},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
                 if concert_seat.reserved_by_id != request.user.id:
@@ -136,9 +206,9 @@ class OrderViewSet(viewsets.ModelViewSet):
                         {'error': f'Seat {seat_id} is held by another user'},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
-                if concert_seat.reserved_until and concert_seat.reserved_until < timezone.now():
+                if effective_seat_status(concert_seat) == 'sold':
                     return Response(
-                        {'error': f'Seat {seat_id} reservation expired'},
+                        {'error': f'Seat {seat_id} is already sold'},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
@@ -188,6 +258,8 @@ class OrderViewSet(viewsets.ModelViewSet):
                 seat=seat,
                 price=seat.zone.price,
             )
+
+        extend_order_reservations(order)
 
         return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
 
@@ -241,9 +313,6 @@ class OrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        if order.status != 'pending':
-            return Response({'error': 'Order is not pending'}, status=status.HTTP_400_BAD_REQUEST)
-
         paypal_order_id = request.data.get('paypal_order_id') or order.paypal_order_id
         if not paypal_order_id:
             return Response(
@@ -251,35 +320,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        try:
-            is_valid, error_message = capture_and_verify_paypal_order(order, paypal_order_id)
-        except PayPalNotConfiguredError as exc:
-            return Response({'error': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-        except Exception as exc:
-            return Response(
-                {'error': f'Xác minh thanh toán thất bại: {exc}'},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
-
-        if not is_valid:
-            return Response({'error': error_message}, status=status.HTTP_400_BAD_REQUEST)
-
-        order.paypal_order_id = paypal_order_id
-        order.payment_method = 'paypal'
-        order.status = 'paid'
-        order.save()
-
-        for item in order.items.all():
-            concert_seat = ConcertSeat.objects.get(concert=order.concert, seat=item.seat)
-            concert_seat.status = 'sold'
-            concert_seat.reserved_until = None
-            concert_seat.reserved_by = None
-            concert_seat.save()
-
-        return Response(
-            {'message': 'Payment successful', 'order': OrderSerializer(order).data},
-            status=status.HTTP_200_OK,
-        )
+        return _finalize_paypal_payment(order, paypal_order_id)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def cancel(self, request, pk=None):
@@ -294,15 +335,11 @@ class OrderViewSet(viewsets.ModelViewSet):
         if order.status == 'cancelled':
             return Response({'error': 'Order is already cancelled'}, status=status.HTTP_400_BAD_REQUEST)
 
+        if order.status == 'paid':
+            return Response({'error': 'Cannot cancel a paid order'}, status=status.HTTP_400_BAD_REQUEST)
+
         order.status = 'cancelled'
         order.save()
-
-        for item in order.items.all():
-            concert_seat = ConcertSeat.objects.get(concert=order.concert, seat=item.seat)
-            if concert_seat.status in ('reserved', 'sold'):
-                concert_seat.status = 'available'
-                concert_seat.reserved_until = None
-                concert_seat.reserved_by = None
-                concert_seat.save()
+        release_order_seats(order)
 
         return Response({'message': 'Order cancelled'}, status=status.HTTP_200_OK)

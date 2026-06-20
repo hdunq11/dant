@@ -55,20 +55,8 @@
 .qr-box {
   border: 2px dashed var(--divider);
   border-radius: 12px;
-  padding: 32px;
+  padding: 24px 20px;
   margin-bottom: 24px;
-}
-
-.qr-box span {
-  display: block;
-  font-weight: 600;
-  word-break: break-all;
-}
-
-.qr-box small {
-  display: block;
-  margin-top: 8px;
-  color: var(--text-muted);
 }
 
 .confirm-actions {

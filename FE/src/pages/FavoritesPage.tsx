@@ -31,7 +31,6 @@ export function FavoritesPage() {
 
   return (
     <ProfileShell
-      active="favorites"
       title="Yêu thích"
       subtitle="Các concert bạn đã lưu để xem và đặt vé sau."
     >

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { concertApi } from '../api/concertApi';
 import { Spinner } from '../components/Spinner';
+import { TicketQrCode } from '../components/TicketQrCode';
 import type { Order } from '../types';
 import { formatDateTime, formatVnd, orderStatusLabel } from '../utils/format';
 import './ConfirmationPage.css';
@@ -39,12 +40,13 @@ export function ConfirmationPage() {
           </div>
         )}
         <div className="qr-box">
-          <span>QR-{orderId?.slice(0, 12)}</span>
-          <small>Hiển thị mã tại cổng vào (demo)</small>
+          {orderId ? (
+            <TicketQrCode orderId={orderId} size={176} hint="Hiển thị mã tại cổng vào" />
+          ) : null}
         </div>
         <div className="confirm-actions">
-          <Link to="/tickets" className="btn btn-primary">
-            Xem vé của tôi
+          <Link to={orderId ? `/tickets/${orderId}` : '/tickets'} className="btn btn-primary">
+            Xem chi tiết vé
           </Link>
           <Link to="/" className="btn btn-outline">
             Về trang chủ

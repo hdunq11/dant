@@ -24,14 +24,31 @@ def hold_until():
     return timezone.now() + timedelta(minutes=HOLD_MINUTES)
 
 
-def is_seat_selectable(concert_seat: ConcertSeat, user) -> bool:
+def is_active_reservation(concert_seat: ConcertSeat) -> bool:
+    """Giữ chỗ còn hiệu lực trong HOLD_MINUTES — không dựa vào status DB lưu sẵn."""
+    return (
+        concert_seat.status == 'reserved'
+        and concert_seat.reserved_until is not None
+        and concert_seat.reserved_until >= timezone.now()
+    )
+
+
+def effective_seat_status(concert_seat: ConcertSeat) -> str:
+    """Trạng thái hiển thị real-time; hết hạn giữ chỗ → available."""
     if concert_seat.status == 'sold':
+        return 'sold'
+    if is_active_reservation(concert_seat):
+        return 'reserved'
+    return 'available'
+
+
+def is_seat_selectable(concert_seat: ConcertSeat, user) -> bool:
+    status = effective_seat_status(concert_seat)
+    if status == 'sold':
         return False
-    if concert_seat.status == 'available':
+    if status == 'available':
         return True
-    if concert_seat.status == 'reserved':
-        if concert_seat.reserved_until and concert_seat.reserved_until < timezone.now():
-            return True
+    if status == 'reserved':
         if user and getattr(user, 'is_authenticated', False):
             return concert_seat.reserved_by_id == user.id
         return False
@@ -40,23 +57,27 @@ def is_seat_selectable(concert_seat: ConcertSeat, user) -> bool:
 
 def serialize_map_seat(concert_seat: ConcertSeat, user) -> dict:
     seat = concert_seat.seat
+    status = effective_seat_status(concert_seat)
     reserved_by_me = (
-        concert_seat.status == 'reserved'
+        status == 'reserved'
         and user
         and getattr(user, 'is_authenticated', False)
         and concert_seat.reserved_by_id == user.id
     )
-    return {
+    payload = {
         'seat_id': str(seat.id),
         'row': seat.row_label,
         'number': seat.seat_number,
-        'status': concert_seat.status,
+        'status': status,
         'selectable': is_seat_selectable(concert_seat, user),
         'reserved_by_me': reserved_by_me,
         'pos_x': seat.pos_x,
         'pos_y': seat.pos_y,
         'pos_z': seat.pos_z,
     }
+    if is_active_reservation(concert_seat) and concert_seat.reserved_until:
+        payload['reserved_until'] = concert_seat.reserved_until.isoformat()
+    return payload
 
 
 def release_user_reservations(concert, user):
