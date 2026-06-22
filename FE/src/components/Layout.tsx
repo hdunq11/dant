@@ -1,5 +1,6 @@
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { ChatWidget } from './chat/ChatWidget';
 import { IconExplore, IconHeart, IconTicket, IconUser } from './fan/FanIcons';
 import './Layout.css';
 
@@ -87,6 +88,7 @@ export function Layout() {
           </div>
         </div>
       </footer>
+      <ChatWidget />
     </div>
   );
 }

@@ -120,7 +120,7 @@ export function Stage1SeatInstances({
   if (!seats.length) return null;
 
   return (
-    <group pointerEventsType={{ deny: 'grab' }}>
+    <group>
       {seats.map((seat) => (
         <Stage1SeatTag
           key={seat.seatId}

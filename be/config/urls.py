@@ -36,6 +36,7 @@ urlpatterns = [
     path('api/behaviors/', include('app.behaviors.urls')),
     path('api/organizer/', include('app.organizer.urls')),
     path('api/admin/', include('app.admin_panel.urls')),
+    path('api/chatbot/', include('app.chatbot.urls')),
     
     # Token refresh
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token-refresh'),

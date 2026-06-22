@@ -69,15 +69,18 @@ export function computeVrSpawn(seats: Seat3D[], hasVenueModel: boolean): VrSpawn
   const cz = (minZ + maxZ) / 2;
   const width = Math.max(maxX - minX, 8);
   const depth = Math.max(maxZ - minZ, 8);
-  const groundY = hasVenueModel ? 0 : Math.max(minY - 0.4, 0);
+  const groundY = hasVenueModel ? Math.max(minY - 0.45, 0) : Math.max(minY - 0.4, 0);
 
-  // Đặt người xem phía sau khán đài (z lớn), quay mặt về sân khấu (z âm hơn)
-  const spawnZ = maxZ + Math.max(depth * 0.2, 2);
+  // Đặt người xem phía sau khán đài (xa sân khấu), tầm mắt khán giả nhìn lên sân khấu
+  const stageZ = stage[2];
+  const audienceSign = cz >= stageZ ? 1 : -1;
+  const audienceEdgeZ = audienceSign > 0 ? maxZ : minZ;
+  const spawnZ = audienceEdgeZ + audienceSign * Math.max(depth * 0.12, 1.5);
   const position: [number, number, number] = [cx, groundY, spawnZ];
 
   return {
     position,
-    rotationY: yawToward(position[0], position[2], stage[0], stage[2]),
+    rotationY: yawToward(position[0], position[2], STAGE_LOOK_AT[0], STAGE_LOOK_AT[2]),
     floorCenter: [cx, groundY, cz],
     floorW: width + 12,
     floorD: depth + 16,
@@ -307,10 +310,11 @@ export function computeSeatOriginPose(
   seat: Seat3D,
   floorY = 0
 ): { position: [number, number, number]; rotationY: number } {
-  const [sx, , sz] = seat.position;
+  const [sx, sy, sz] = seat.position;
   const look = STAGE_LOOK_AT;
+  const feetY = Math.max(sy - 0.45, floorY);
   return {
-    position: [sx, floorY, sz],
+    position: [sx, feetY, sz],
     rotationY: yawToward(sx, sz, look[0], look[2]),
   };
 }

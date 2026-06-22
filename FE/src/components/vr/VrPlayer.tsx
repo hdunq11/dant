@@ -55,6 +55,13 @@ function angleDelta(a: number, b: number) {
   return Math.abs(diff);
 }
 
+function spawnPose(spawn: VrSpawn) {
+  return {
+    position: new Vector3(...spawn.position),
+    rotationY: spawn.rotationY,
+  };
+}
+
 interface VrPlayerProps {
   spawn: VrSpawn;
 }
@@ -68,6 +75,8 @@ export function VrPlayer({ spawn }: VrPlayerProps) {
   const isFlying = useRef(false);
   const snapCooldown = useRef(0);
   const lastSnapDir = useRef(0);
+  const hadFocus = useRef(false);
+  const spawnPending = useRef(false);
   spawnRef.current = spawn;
 
   const cancelFly = () => {
@@ -84,20 +93,28 @@ export function VrPlayer({ spawn }: VrPlayerProps) {
     cancelFly();
   };
 
+  const flyToSpawn = () => {
+    flyTarget.current = spawnPose(spawnRef.current);
+    isFlying.current = true;
+  };
+
   useEffect(() => {
     if (!session) {
       cancelFly();
+      hadFocus.current = false;
+      spawnPending.current = false;
       return;
     }
-    const id = requestAnimationFrame(applySpawn);
-    return () => cancelAnimationFrame(id);
-  }, [session, spawn.position, spawn.rotationY]);
+    // Chỉ reset vị trí khi mới vào VR — không khi spawn/seats đổi (poll sơ đồ ghế)
+    spawnPending.current = true;
+  }, [session]);
 
   useEffect(() => {
     if (!session) return;
 
     if (focusSeat) {
-      const pose = computeSeatOriginPose(focusSeat, spawn.floorY);
+      hadFocus.current = true;
+      const pose = computeSeatOriginPose(focusSeat, spawnRef.current.floorY);
       flyTarget.current = {
         position: new Vector3(...pose.position),
         rotationY: pose.rotationY,
@@ -106,12 +123,25 @@ export function VrPlayer({ spawn }: VrPlayerProps) {
       return;
     }
 
+    if (hadFocus.current) {
+      hadFocus.current = false;
+      flyToSpawn();
+      return;
+    }
+
     cancelFly();
-  }, [focusSeat, session, spawn.floorY]);
+  }, [focusSeat, session]);
 
   useFrame((_, delta) => {
     const origin = originRef.current;
     if (!origin || !session) return;
+
+    if (spawnPending.current) {
+      if (!useVrFocusStore.getState().focusSeat) {
+        applySpawn();
+      }
+      spawnPending.current = false;
+    }
 
     const queuedYaw = useVrViewStore.getState().takeYaw();
     if (queuedYaw !== 0) {
@@ -190,17 +220,17 @@ export function VrPlayer({ spawn }: VrPlayerProps) {
     useVrFocusStore.getState().clearFocus();
   };
 
-  if (!session) return null;
-
   return (
     <>
       <XROrigin ref={originRef} />
-      <TeleportTarget onTeleport={handleTeleport}>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={spawn.floorCenter}>
-          <planeGeometry args={[spawn.floorW, spawn.floorD]} />
-          <meshBasicMaterial transparent opacity={0.01} depthWrite={false} />
-        </mesh>
-      </TeleportTarget>
+      {session && !focusSeat ? (
+        <TeleportTarget onTeleport={handleTeleport}>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={spawn.floorCenter}>
+            <planeGeometry args={[spawn.floorW, spawn.floorD]} />
+            <meshBasicMaterial transparent opacity={0.01} depthWrite={false} />
+          </mesh>
+        </TeleportTarget>
+      ) : null}
     </>
   );
 }

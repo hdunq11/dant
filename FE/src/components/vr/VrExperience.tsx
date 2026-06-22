@@ -2,11 +2,12 @@ import { useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { XR } from '@react-three/xr';
 import type { Seat3D } from '../../utils/seatMap3D';
-import { computeVrFraming, computeVrSpawn } from '../../utils/seatMap3D';
+import { computeVrFraming, computeVrSpawn, seatTagPose } from '../../utils/seatMap3D';
 import { VenueScene } from './VenueScene';
 import { VrFog } from './VrFog';
 import { VrControllerButtons } from './VrControllerButtons';
 import { VrPlayer } from './VrPlayer';
+import { VrSeatSelector } from './VrSeatSelector';
 import { xrStore } from './xrStore';
 
 interface VrExperienceProps {
@@ -31,11 +32,16 @@ export function VrExperience({
   const hasVenueModel = !!modelPath;
   const framing = useMemo(() => computeVrFraming(seats, hasVenueModel), [seats, hasVenueModel]);
   const spawn = useMemo(() => computeVrSpawn(seats, hasVenueModel), [seats, hasVenueModel]);
+  const getTagPosition = useMemo(
+    () => (seat: Seat3D) => seatTagPose(seat).position,
+    []
+  );
 
   const scene = (
     <>
       <VrPlayer spawn={spawn} />
       <VrControllerButtons />
+      <VrSeatSelector seats={seats} getTagPosition={getTagPosition} onSelect={onSelectSeat} />
       <VenueScene
         seats={seats}
         selectedIds={selectedIds}

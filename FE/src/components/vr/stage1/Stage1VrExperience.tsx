@@ -8,6 +8,7 @@ import { VrControllerButtons } from '../VrControllerButtons';
 import { VrPlayer } from '../VrPlayer';
 import { xrStore } from '../xrStore';
 import { Stage1VenueScene } from './Stage1VenueScene';
+import { Stage1VrSeatSelector } from './Stage1VrSeatSelector';
 
 interface Stage1VrExperienceProps {
   seats: Seat3D[];
@@ -33,6 +34,7 @@ export function Stage1VrExperience({
     <>
       <VrPlayer spawn={spawn} />
       <VrControllerButtons />
+      <Stage1VrSeatSelector seats={seats} onSelect={onSelectSeat} />
       <Stage1VenueScene
         seats={seats}
         selectedIds={selectedIds}

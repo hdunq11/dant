@@ -163,16 +163,26 @@ export function computeStage1VrSpawn(seats: Seat3D[]): VrSpawn {
   const cz = (minZ + maxZ) / 2;
   const width = Math.max(maxX - minX, 12);
   const depth = Math.max(maxZ - minZ, 12);
-  const spawnZ = maxZ + Math.max(depth * 0.15, 3);
-  const position: [number, number, number] = [cx, 0, spawnZ];
+
+  let minY = Infinity;
+  for (const seat of seats) {
+    minY = Math.min(minY, seat.position[1]);
+  }
+  const groundY = Math.max(minY - 0.45, 0);
+
+  const stageZ = stage[2];
+  const audienceSign = cz >= stageZ ? 1 : -1;
+  const audienceEdgeZ = audienceSign > 0 ? maxZ : minZ;
+  const spawnZ = audienceEdgeZ + audienceSign * Math.max(depth * 0.12, 2);
+  const position: [number, number, number] = [cx, groundY, spawnZ];
 
   return {
     position,
-    rotationY: yawToward(position[0], position[2], stage[0], stage[2]),
-    floorCenter: [cx, 0, cz],
+    rotationY: yawToward(position[0], position[2], STAGE_LOOK_AT[0], STAGE_LOOK_AT[2]),
+    floorCenter: [cx, groundY, cz],
     floorW: width + 10,
     floorD: depth + 14,
-    floorY: 0,
+    floorY: groundY,
   };
 }
 

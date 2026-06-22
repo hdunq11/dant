@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     'app.behaviors',
     'app.organizer',
     'app.admin_panel',
+    'app.chatbot',
 ]
 
 MIDDLEWARE = [
@@ -215,3 +216,7 @@ PAYPAL_CLIENT_SECRET = config('PAYPAL_CLIENT_SECRET', default='')
 PAYPAL_MODE = config('PAYPAL_MODE', default='sandbox')
 PAYPAL_CURRENCY = config('PAYPAL_CURRENCY', default='USD')
 PAYPAL_VND_PER_USD = config('PAYPAL_VND_PER_USD', default=25000, cast=int)
+
+# Groq — chatbot CSKH (https://console.groq.com)
+GROQ_API_KEY = config('GROQ_API_KEY', default='')
+GROQ_MODEL = config('GROQ_MODEL', default='qwen/qwen3-32b')
