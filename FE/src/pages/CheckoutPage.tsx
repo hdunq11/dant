@@ -289,18 +289,18 @@ export function CheckoutPage() {
                 <span>Tiền ghế</span>
                 <span>{formatVnd(checkout.seatSubtotal)}</span>
               </div>
-              <div className="price-row">
-                <span>Phí đặt chỗ</span>
-                <span>{formatVnd(preview.bookingFee)}</span>
-              </div>
-              <div className="price-row">
-                <span>Phí giao vé</span>
-                <span>{formatVnd(preview.deliveryFee)}</span>
-              </div>
-              <div className="price-row">
-                <span>Bảo hiểm</span>
-                <span>{formatVnd(preview.insuranceFee)}</span>
-              </div>
+              {(preview.deliveryFee ?? 0) > 0 ? (
+                <div className="price-row">
+                  <span>Phí giao vé</span>
+                  <span>{formatVnd(preview.deliveryFee)}</span>
+                </div>
+              ) : null}
+              {(preview.insuranceFee ?? 0) > 0 ? (
+                <div className="price-row">
+                  <span>Bảo hiểm</span>
+                  <span>{formatVnd(preview.insuranceFee)}</span>
+                </div>
+              ) : null}
               {discount > 0 && (
                 <div className="price-row discount">
                   <span>Giảm giá</span>

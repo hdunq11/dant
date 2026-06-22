@@ -21,6 +21,7 @@ export interface RegisterPayload {
   register_as_organizer?: boolean;
   company_name?: string;
   business_license?: string;
+  service_fee_percent?: number;
   contact_phone?: string;
 }
 
@@ -34,6 +35,12 @@ export const concertApi = {
 
   updateProfile: (body: { full_name?: string; avatar_url?: string }) =>
     api.put<User>('api/users/me/', body),
+
+  changePassword: (body: {
+    current_password: string;
+    new_password: string;
+    new_password_confirm: string;
+  }) => api.post<{ message?: string }>('api/users/me/change-password/', body),
 
   getConcerts: (params?: {
     search?: string;

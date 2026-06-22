@@ -31,7 +31,8 @@ class OrderSerializer(serializers.ModelSerializer):
         model = Order
         fields = (
             'id', 'user', 'concert', 'concert_title', 'seat_subtotal', 'booking_fee',
-            'delivery_fee', 'insurance_fee', 'discount_amount', 'voucher_code',
+            'delivery_fee', 'insurance_fee', 'discount_amount', 'platform_commission',
+            'service_fee_percent_snapshot', 'voucher_code',
             'delivery_method', 'has_insurance', 'payment_method', 'total_price',
             'status', 'items', 'created_at', 'updated_at',
         )

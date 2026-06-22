@@ -189,6 +189,10 @@
   cursor: not-allowed;
 }
 
+.arena-seat--held-mine {
+  filter: drop-shadow(0 0 2px rgba(91, 77, 255, 0.55));
+}
+
 .arena-seat--sold {
   cursor: not-allowed;
   opacity: 0.72;

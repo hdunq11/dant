@@ -3,7 +3,7 @@
 **Dự án:** DATN — Concert Booking System (ConcertGo)  
 **Thành phần:** Backend (Django REST) · Web (React/Vite/Three.js) · Mobile (Android Kotlin)  
 **CSDL:** PostgreSQL  
-**Cập nhật:** 17/06/2026
+**Cập nhật:** 21/06/2026
 
 ---
 
@@ -117,76 +117,89 @@ flowchart LR
 
 ## 3. Phân tích tác nhân (Actors)
 
-| STT | Tác nhân | Mô tả |
-|-----|----------|--------|
-| A1 | **Khách (Guest)** | Chưa đăng nhập. Web: duyệt concert, gợi ý. Mobile: một số màn yêu cầu login để đặt vé. |
-| A2 | **Người dùng (User / Fan)** | JWT. Đặt vé, PayPal, yêu thích, hồ sơ, vé của tôi. |
-| A3 | **Nhà tổ chức (Organizer)** | Đăng ký kèm `OrganizerProfile`. Chờ admin duyệt → portal `/organizer/*`. |
-| A4 | **Quản trị viên (Admin)** | `role=admin` hoặc `is_staff`. Portal `/admin/*` + Django Admin. |
+| STT | Tác nhân | Loại | Mô tả |
+|-----|----------|------|--------|
+| ACT-01 | **Khách vãng lai** | Primary | Chưa đăng nhập. Tìm kiếm, xem concert, nhận gợi ý chung. |
+| ACT-02 | **Người dùng (Fan)** | Primary | Đã đăng nhập. Đặt vé, quản lý hồ sơ, đơn hàng, yêu thích. |
+| ACT-03 | **Nhà tổ chức** | Primary | Organizer đã duyệt. Quản lý show, venue, theo dõi bán vé. |
+| ACT-04 | **Quản trị viên** | Primary | Duyệt nội dung, quản trị platform. |
 
-**Quan hệ UML:** Admin và Organizer **generalization** User (quyền mở rộng).
+**Quan hệ UML:** Nhà tổ chức và Quản trị viên **generalization** Người dùng; Khách vãng lai trở thành Người dùng sau đăng nhập.
+
+> PayPal Sandbox là dịch vụ thanh toán bên ngoài do hệ thống tích hợp — **không** mô hình hóa thành actor trên sơ đồ use case.
 
 ---
 
 ## 4. Phân tích use case (tóm tắt)
 
-### 4.1. Nhóm Fan (UC-FAN)
+> Chuẩn UML: mỗi UC = một mục tiêu nghiệp vụ; bước con dùng `<<include>>` / `<<extend>>`.  
+> Chi tiết đặc tả đầy đủ 22 UC: xem `docs/pttk.md`
 
-| ID | Use case | Actor |
-|----|----------|-------|
-| UC01–UC04 | Đăng ký, đăng nhập, đăng xuất, hồ sơ | Guest, User |
-| UC05–UC08 | Duyệt concert, chi tiết, seatmap, gợi ý | Guest, User |
-| UC09–UC15 | Chọn ghế, reserve, voucher, tạo đơn, PayPal, vé của tôi, hủy | User |
-| UC16–UC18 | Yêu thích, danh sách yêu thích, ghi hành vi | User |
-| UC-VR | Xem venue 3D / VR preview | User |
+### 4.1. Nhóm quản lý tài khoản
 
-### 4.2. Nhóm Organizer (UC-ORG)
+| Mã UC | Tên use case | Tác nhân |
+|-------|--------------|----------|
+| UC-01 | Đăng ký tài khoản người dùng | Khách vãng lai |
+| UC-02 | Đăng ký tài khoản nhà tổ chức | Khách vãng lai |
+| UC-03 | Đăng nhập hệ thống | Khách vãng lai |
+| UC-04 | Đăng xuất khỏi hệ thống | Người dùng |
+| UC-05 | Quản lý hồ sơ cá nhân | Người dùng |
 
-| ID | Use case | Mô tả |
-|----|----------|--------|
-| UC-ORG01 | Đăng ký organizer | Tạo OrganizerProfile `pending` |
-| UC-ORG02 | Dashboard / thống kê | Doanh thu, đơn hàng |
-| UC-ORG03 | Quản lý concert | draft → submit → publish |
-| UC-ORG04 | Quản lý venue & zone | Sinh ghế, seatmap |
-| UC-ORG05 | Xem orders / tickets | Theo concert |
+### 4.2. Nhóm khám phá & đặt vé
 
-### 4.3. Nhóm Admin (UC-ADM)
+| Mã UC | Tên use case | Tác nhân |
+|-------|--------------|----------|
+| UC-06 | Tìm kiếm concert | Khách, Người dùng |
+| UC-07 | Xem chi tiết concert | Khách, Người dùng |
+| UC-08 | Nhận gợi ý concert | Khách, Người dùng |
+| UC-09 | Xem trước địa điểm bằng mô hình 3D | Khách, Người dùng |
+| UC-10 | Quản lý danh sách yêu thích | Người dùng |
+| UC-11 | **Đặt vé concert** *(include: chọn ghế, giữ ghế, tạo đơn, thanh toán)* | Người dùng |
+| UC-12 | Xem lịch sử đặt vé | Người dùng |
+| UC-13 | Hủy đơn đặt vé chưa thanh toán | Người dùng |
 
-| ID | Use case | Mô tả |
-|----|----------|--------|
-| UC-ADM01 | Duyệt / từ chối organizer | approve / reject |
-| UC-ADM02 | Duyệt / từ chối concert | workflow review |
-| UC-ADM03 | Quản lý users, vouchers, venues | CRUD qua web admin |
-| UC-ADM04 | Báo cáo platform | reports API |
+### 4.3. Nhóm nhà tổ chức
 
-> Chi tiết đặc tả UK từng UC: xem `docs/pttk.md`
+| Mã UC | Tên use case | Tác nhân |
+|-------|--------------|----------|
+| UC-14 | Quản lý concert | Nhà tổ chức |
+| UC-15 | Quản lý địa điểm và sơ đồ ghế | Nhà tổ chức |
+| UC-16 | Theo dõi bán vé và doanh thu | Nhà tổ chức |
 
-### 4.4. Sơ đồ use case tổng quát
+### 4.4. Nhóm quản trị
+
+| Mã UC | Tên use case | Tác nhân |
+|-------|--------------|----------|
+| UC-17 | Duyệt hồ sơ nhà tổ chức | Quản trị viên |
+| UC-18 | Duyệt nội dung concert | Quản trị viên |
+| UC-19 | Quản lý người dùng hệ thống | Quản trị viên |
+| UC-20 | Quản lý mã giảm giá | Quản trị viên |
+| UC-21 | Quản lý dữ liệu nền | Quản trị viên |
+| UC-22 | Xem báo cáo tổng hợp hệ thống | Quản trị viên |
+
+### 4.5. Sơ đồ use case tổng quát
 
 ```mermaid
 flowchart TB
-    subgraph System["Hệ thống ConcertGo"]
-        UC05[UC05 Duyệt concert]
-        UC12[UC12 Tạo đơn]
-        UC13[UC13 PayPal]
-        UCORG[UC-ORG Quản lý show]
-        UCADM[UC-ADM Duyệt & quản trị]
-        UCVR[UC-VR Preview 3D]
+    subgraph System["«system» Hệ thống ConcertGo"]
+        UC06["UC-06\nTìm kiếm concert"]
+        UC11["UC-11\nĐặt vé concert"]
+        UC14["UC-14\nQuản lý concert"]
+        UC17["UC-17\nDuyệt nhà tổ chức"]
+        UC09["UC-09\nXem trước 3D"]
     end
 
-    Guest((Khách))
-    User((Fan))
-    Organizer((Organizer))
-    Admin((Admin))
+    Guest(("Khách vãng lai"))
+    User(("Người dùng"))
+    Org(("Nhà tổ chức"))
+    Admin(("Quản trị viên"))
 
-    Guest --> UC05
-    User --> UC12
-    User --> UC13
-    User --> UCVR
-    Organizer --> UCORG
-    Admin --> UCADM
+    Guest --> UC06 & UC09
+    User --> UC11 & UC09
+    Org --> UC14
+    Admin --> UC17
     User --- Guest
-    Organizer --- User
+    Org --- User
     Admin --- User
 ```
 
@@ -287,15 +300,18 @@ Tổng = Tiền ghế + Phí đặt chỗ (20.000₫) + Phí giao vé + Bảo hi
 
 ## 8. Ánh xạ Use case ↔ Giao diện ↔ API
 
-| Use case | Web (FE) | Mobile | API chính |
-|----------|----------|--------|-----------|
-| UC05–UC06 | `/`, `/concerts/:id` | Home, Detail | `GET /api/concerts/concerts/` |
-| UC07–UC10 | `/concerts/:id/seats` | SeatSelection | seatmap, reserve |
-| UC11–UC13 | `/checkout`, PayPal buttons | CheckoutFragment | validate, create, create_paypal_order, pay |
-| UC14–UC15 | `/tickets` | Dashboard | `GET me/orders`, cancel |
-| UC-VR | `/concerts/:id/vr-preview` | — | seatmap + GLB static |
-| UC-ORG | `/organizer/*` | — | `/api/organizer/*` |
-| UC-ADM | `/admin/*` | — | `/api/admin/*` |
+| Mã UC | Web (FE) | Mobile | API chính |
+|-------|----------|--------|-----------|
+| UC-01–UC-03 | `/register`, `/login` | Login, Register | `/api/users/auth/*` |
+| UC-05 | `/profile` | Profile | `GET/PUT /api/users/me/` |
+| UC-06–UC-07 | `/`, `/concerts/:id` | Home, Detail | `GET /api/concerts/concerts/` |
+| UC-08 | Trang chủ, chi tiết | Home | `GET /api/behaviors/recommend/` |
+| UC-09 | `/concerts/:id/vr-preview` | — | seatmap + GLB |
+| UC-10 | `/favorites` | Favorites | favorites API |
+| UC-11 | `/seats`, `/checkout` | SeatSelection, Checkout | reserve, orders, PayPal |
+| UC-12–UC-13 | `/tickets` | Dashboard | `GET me/orders`, cancel |
+| UC-14–UC-16 | `/organizer/*` | — | `/api/organizer/*` |
+| UC-17–UC-22 | `/admin/*` | — | `/api/admin/*` |
 
 ---
 

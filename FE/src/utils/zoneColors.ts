@@ -9,7 +9,7 @@ export const ZONE_COLOR_PALETTE = [
 
 export const SEAT_STATUS_COLORS = {
   selected: '#ef4444',
-  reserved: '#f59e0b',
+  reserved: '#5b4dff',
   sold: '#94a3b8',
 } as const;
 
@@ -26,6 +26,6 @@ export function getSeatDisplayColor(
 ): string {
   if (picked) return SEAT_STATUS_COLORS.selected;
   if (status === 'sold') return SEAT_STATUS_COLORS.sold;
-  if (status === 'reserved' && !reservedByMe) return SEAT_STATUS_COLORS.reserved;
+  if (status === 'reserved') return SEAT_STATUS_COLORS.reserved;
   return zoneColor ?? ZONE_COLOR_PALETTE[0];
 }

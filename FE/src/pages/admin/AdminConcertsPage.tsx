@@ -2,10 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { adminApi } from '../../api/adminApi';
 import { EmptyState } from '../../components/EmptyState';
+import { PageHeader } from '../../components/portal/PageHeader';
 import { getApiErrorMessage } from '../../context/AuthContext';
 import type { Artist, Concert, Venue } from '../../types';
 import { formatDateTime } from '../../utils/format';
-import { CONCERT_STATUS_LABEL, concertStatusClass } from './adminUtils';
+import { CONCERT_STATUS_LABEL, concertStatusClass, stageTemplateLabel } from './adminUtils';
 
 function toLocalInput(iso?: string) {
   if (!iso) return '';
@@ -130,15 +131,6 @@ export function AdminConcertsPage() {
     }
   };
 
-  const syncSeats = async (id: string) => {
-    try {
-      const res = await adminApi.syncConcertSeats(id);
-      alert(`Đồng bộ xong: +${res.data.created} ghế (tổng ${res.data.total})`);
-    } catch (e) {
-      setError(getApiErrorMessage(e));
-    }
-  };
-
   const approve = async (id: string) => {
     try {
       await adminApi.approveConcert(id);
@@ -168,15 +160,15 @@ export function AdminConcertsPage() {
 
   return (
     <div>
-      <div className="admin-topbar">
-        <h1 className="page-title">Concerts</h1>
-        <button type="button" className="btn btn-primary btn-sm" onClick={() => setForm(emptyForm())}>
-          + Concert nội bộ
-        </button>
-      </div>
-      <p style={{ color: 'var(--text-secondary)', marginTop: 0 }}>
-        Duyệt concert do doanh nghiệp gửi lên hoặc tạo concert platform (internal).
-      </p>
+      <PageHeader
+        title="Concerts"
+        subtitle="Duyệt concert do doanh nghiệp gửi lên hoặc tạo concert platform (internal). Ghế được tạo tự động khi organizer lưu sơ đồ sân khấu."
+        actions={
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => setForm(emptyForm())}>
+            + Concert nội bộ
+          </button>
+        }
+      />
       {error ? <div className="alert alert-error">{error}</div> : null}
 
       <div className="admin-tabs">
@@ -200,6 +192,8 @@ export function AdminConcertsPage() {
                 <th>Tiêu đề</th>
                 <th>Nguồn</th>
                 <th>Địa điểm</th>
+                <th>Sân khấu</th>
+                <th>Ghế</th>
                 <th>Thời gian</th>
                 <th>Trạng thái</th>
                 <th></th>
@@ -211,6 +205,8 @@ export function AdminConcertsPage() {
                   <td>{c.title}</td>
                   <td>{c.event_source === 'external' ? 'Đối tác' : 'Platform'}</td>
                   <td>{c.venue?.name}</td>
+                  <td>{stageTemplateLabel(c.stage_template)}</td>
+                  <td>{c.desired_seat_count ?? c.venue?.capacity ?? '—'}</td>
                   <td>{formatDateTime(c.start_time)}</td>
                   <td>
                     <span className={concertStatusClass(c.status)}>
@@ -228,7 +224,6 @@ export function AdminConcertsPage() {
                       <button type="button" className="btn btn-primary btn-xs" onClick={() => publish(c.id!)}>Publish</button>
                     ) : null}
                     <button type="button" className="btn btn-outline btn-xs" onClick={() => openEdit(c)}>Sửa</button>
-                    <button type="button" className="btn btn-outline btn-xs" onClick={() => c.id && syncSeats(c.id)}>Sync ghế</button>
                     <button type="button" className="btn btn-danger btn-xs" onClick={() => c.id && remove(c.id)}>Xóa</button>
                   </td>
                 </tr>

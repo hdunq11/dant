@@ -1,0 +1,243 @@
+.org-concert-form-page {
+  max-width: 880px;
+}
+
+.org-concert-form-page__header {
+  margin-bottom: 24px;
+}
+
+.org-concert-form-page__header h1 {
+  margin: 0 0 6px;
+  font-size: 1.65rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.org-concert-form-page__header p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+}
+
+.org-concert-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.org-concert-section {
+  padding: 24px 26px;
+  border-radius: 18px;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04);
+}
+
+.org-concert-section__head {
+  margin-bottom: 18px;
+}
+
+.org-concert-section__head h2 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.org-concert-section__head p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.org-concert-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 20px;
+}
+
+.org-concert-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.org-concert-field--full {
+  grid-column: 1 / -1;
+}
+
+.org-concert-field label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.org-concert-field input,
+.org-concert-field select,
+.org-concert-field textarea {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 1px solid var(--divider);
+  border-radius: 12px;
+  background: #fff;
+  font: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.org-concert-field textarea {
+  min-height: 110px;
+  padding: 12px 14px;
+  resize: vertical;
+}
+
+.org-concert-field input:focus,
+.org-concert-field select:focus,
+.org-concert-field textarea:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.org-concert-field small {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.org-concert-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.org-concert-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #4338ca;
+  background: #eef2ff;
+  border: 1px solid rgba(99, 102, 241, 0.15);
+}
+
+.org-concert-venue-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.org-concert-venue-row .org-concert-field {
+  flex: 1;
+}
+
+.org-concert-venue-toggle {
+  flex-shrink: 0;
+  margin-bottom: 2px;
+}
+
+.org-concert-venue-panel {
+  margin-top: 16px;
+  padding: 18px;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px dashed rgba(99, 102, 241, 0.25);
+}
+
+.org-concert-banner-preview {
+  margin-top: 12px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  max-width: 360px;
+  aspect-ratio: 16 / 9;
+  background: #f1f5f9;
+}
+
+.org-concert-banner-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.org-concert-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.org-concert-form__actions .btn {
+  min-width: 140px;
+}
+
+.org-concert-stage-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.org-concert-stage-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 2px solid rgba(15, 23, 42, 0.08);
+  background: #fafbff;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+.org-concert-stage-card strong {
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.org-concert-stage-card span {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.org-concert-stage-card em {
+  font-style: normal;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #4f46e5;
+  margin-top: 4px;
+}
+
+.org-concert-stage-card.is-active {
+  border-color: #6366f1;
+  background: #eef2ff;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.org-concert-stage-card:hover {
+  border-color: rgba(99, 102, 241, 0.35);
+}
+
+@media (max-width: 720px) {
+  .org-concert-stage-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .org-concert-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .org-concert-venue-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .org-concert-section {
+    padding: 20px 18px;
+  }
+}

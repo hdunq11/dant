@@ -21,3 +21,13 @@ export function concertStatusClass(status?: string) {
 export function organizerStatusClass(status?: string) {
   return `status-badge status-badge--org-${status ?? 'pending'}`;
 }
+
+export const STAGE_TEMPLATE_LABEL: Record<string, string> = {
+  auditorium_336: '336 ghế',
+  stage1_1000: '1000 ghế',
+};
+
+export function stageTemplateLabel(id?: string | null) {
+  if (!id) return '—';
+  return STAGE_TEMPLATE_LABEL[id] ?? id;
+}

@@ -49,6 +49,12 @@ class OrganizerProfile(models.Model):
     )
     reviewed_at = models.DateTimeField(null=True, blank=True)
     rejection_reason = models.TextField(blank=True, default='')
+    service_fee_percent = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=5,
+        help_text='Phí dịch vụ nền tảng (%) — chiết khấu trên doanh thu vé concert.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

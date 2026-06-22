@@ -2,10 +2,9 @@ import type { SeatMapZone } from '../types';
 import { resolveZoneColor } from './zoneColors';
 import {
   STAGE1_AISLE_GAP_2D,
-  STAGE1_ROW_COUNT,
   STAGE1_SEATS_PER_SIDE,
   STAGE1_TOTAL_SEATS,
-  isStage1Auditorium,
+  isStage1Layout,
   stage1BlockColumn,
   stage1GlobalSeatNumber,
   stage1RowLabelToIndex,
@@ -56,12 +55,21 @@ export function layoutStage1SeatMapZones(zones: SeatMapZone[]): {
   canvasH: number;
   stageWidth: number;
 } {
-  if (!isStage1Auditorium(zones)) {
+  if (!isStage1Layout(zones)) {
     return { zoneLayouts: [], canvasW: 720, canvasH: 400, stageWidth: 320 };
   }
 
+  let maxRowIdx = 0;
+  for (const zone of zones) {
+    for (const seat of zone.seats ?? []) {
+      const rowIdx = stage1RowLabelToIndex((seat.row ?? 'A').trim().toUpperCase()) ?? 0;
+      maxRowIdx = Math.max(maxRowIdx, rowIdx);
+    }
+  }
+  const rowCount = maxRowIdx + 1;
+
   const blockW = STAGE1_SEATS_PER_SIDE * SEAT_STEP;
-  const blockH = STAGE1_ROW_COUNT * SEAT_STEP;
+  const blockH = rowCount * SEAT_STEP;
   const totalW = blockW * 2 + STAGE1_AISLE_GAP_2D;
   const canvasW = Math.max(totalW + 48, 720);
   const originX = (canvasW - totalW) / 2;

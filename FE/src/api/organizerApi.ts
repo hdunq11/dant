@@ -1,6 +1,6 @@
 import { api } from './client';
 import type { Artist, Concert, Order, PaginatedResponse, Venue } from '../types';
-import type { ConcertWrite, SeatZone } from './adminApi';
+import type { OrganizerConcertWrite, SeatZone, StageTemplateOption } from './adminApi';
 
 export interface OrganizerDashboard {
   concerts_total: number;
@@ -8,6 +8,8 @@ export interface OrganizerDashboard {
   concerts_pending_review: number;
   concerts_published: number;
   orders_total: number;
+  ticket_revenue: number;
+  platform_fees: number;
   revenue_total: number;
   tickets_sold: number;
   venues_owned: number;
@@ -20,6 +22,8 @@ export interface OrganizerStatistics {
     title: string;
     status: string;
     orders: number;
+    ticket_revenue?: number;
+    platform_fees?: number;
     revenue: number;
     tickets_sold: number;
   }>;
@@ -75,18 +79,20 @@ export const organizerApi = {
 
   getConcerts: () => api.get<Concert[]>('api/organizer/concerts/'),
   getConcert: (id: string) => api.get<Concert>(`api/organizer/concerts/${id}/`),
-  createConcert: (body: ConcertWrite) => api.post<Concert>('api/organizer/concerts/', body),
-  updateConcert: (id: string, body: Partial<ConcertWrite>) =>
+  createConcert: (body: OrganizerConcertWrite) => api.post<Concert>('api/organizer/concerts/', body),
+  updateConcert: (id: string, body: Partial<OrganizerConcertWrite>) =>
     api.put<Concert>(`api/organizer/concerts/${id}/`, body),
   deleteConcert: (id: string) => api.delete(`api/organizer/concerts/${id}/`),
   submitConcert: (id: string) => api.post<Concert>(`api/organizer/concerts/${id}/submit/`),
   publishConcert: (id: string) => api.post<Concert>(`api/organizer/concerts/${id}/publish/`),
-  syncConcertSeats: (id: string) => api.post(`api/organizer/concerts/${id}/sync_seats/`),
+  deleteUnapprovedConcerts: () =>
+    api.post<{ message?: string; deleted?: number }>('api/organizer/concerts/delete_unapproved/'),
   getConcertSeatmap: (id: string) =>
     api.get<SeatMapOrganizerResponse>(`api/organizer/concerts/${id}/seatmap/`),
 
   getVenues: (owned?: boolean) =>
     api.get<Venue[]>('api/organizer/venues/', { params: owned ? { owned: '1' } : undefined }),
+  getStageTemplates: () => api.get<StageTemplateOption[]>('api/organizer/venues/stage_templates/'),
   createVenue: (body: Partial<Venue>) => api.post<Venue>('api/organizer/venues/', body),
   updateVenue: (id: string, body: Partial<Venue>) => api.put<Venue>(`api/organizer/venues/${id}/`, body),
   deleteVenue: (id: string) => api.delete(`api/organizer/venues/${id}/`),

@@ -61,20 +61,31 @@ export function AdminReportsPage() {
       </div>
 
       <div className="admin-card admin-table-wrap">
-        <h2 style={{ marginTop: 0 }}>Top concert theo doanh thu</h2>
+        <h2 style={{ marginTop: 0 }}>
+          Top concert · Chiết khấu admin: {formatVnd(data.commission_total)}
+        </h2>
         <table className="admin-table">
           <thead>
-            <tr><th>Concert</th><th>Trạng thái</th><th>Nguồn</th><th>Đơn</th><th>Vé</th><th>Doanh thu</th></tr>
+            <tr>
+              <th>Concert</th>
+              <th>Trạng thái</th>
+              <th>Phí DV (%)</th>
+              <th>Đơn</th>
+              <th>Vé</th>
+              <th>Doanh thu vé</th>
+              <th>Chiết khấu</th>
+            </tr>
           </thead>
           <tbody>
             {data.top_concerts.map((c) => (
               <tr key={c.concert_id}>
                 <td>{c.title}</td>
                 <td><span className={concertStatusClass(c.status)}>{CONCERT_STATUS_LABEL[c.status] ?? c.status}</span></td>
-                <td>{c.event_source === 'external' ? 'Đối tác' : 'Platform'}</td>
+                <td>{c.service_fee_percent != null ? `${c.service_fee_percent}%` : '—'}</td>
                 <td>{c.orders}</td>
                 <td>{c.tickets_sold}</td>
-                <td>{formatVnd(c.revenue)}</td>
+                <td>{formatVnd(c.ticket_revenue)}</td>
+                <td>{formatVnd(c.commission)}</td>
               </tr>
             ))}
           </tbody>

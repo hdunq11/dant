@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { concertApi } from '../api/concertApi';
 import { SeatIcon } from '../components/SeatIcon';
@@ -8,13 +8,44 @@ import type { CheckoutState, Concert, SeatMapZone, SelectedSeatDetail } from '..
 import { formatDateTime, formatVnd } from '../utils/format';
 import { layoutSeatMapZones } from '../utils/seatMapLayout';
 import { layoutStage1SeatMapZones } from '../utils/seatMapLayoutStage1';
-import { isStage1Auditorium, isStage1VenueModel } from '../utils/stage1SeatGrid';
+import { isStage1Layout, isStage1VenueModel } from '../utils/stage1SeatGrid';
 import { getSeatDisplayColor, resolveZoneColor, SEAT_STATUS_COLORS } from '../utils/zoneColors';
 import './SeatSelectionPage.css';
 
 interface SeatLocationState {
   selected?: SelectedSeatDetail[];
   holdExpired?: boolean;
+}
+
+function loadHeldFromCheckout(concertId?: string): SelectedSeatDetail[] {
+  if (!concertId) return [];
+  try {
+    const raw = sessionStorage.getItem('checkout');
+    if (!raw) return [];
+    const checkout = JSON.parse(raw) as CheckoutState;
+    if (checkout.concertId !== concertId || !checkout.seatDetails?.length) return [];
+    return checkout.seatDetails;
+  } catch {
+    return [];
+  }
+}
+
+function heldSeatsFromZones(zones: SeatMapZone[]): SelectedSeatDetail[] {
+  const held: SelectedSeatDetail[] = [];
+  for (const zone of zones) {
+    for (const seat of zone.seats ?? []) {
+      if (!seat.reserved_by_me || !seat.seat_id) continue;
+      held.push({
+        seatId: seat.seat_id,
+        zoneId: zone.zone_id!,
+        zoneName: zone.name ?? '',
+        row: seat.row ?? '',
+        number: seat.number ?? 0,
+        price: zone.price ?? 0,
+      });
+    }
+  }
+  return held;
 }
 
 export function SeatSelectionPage() {
@@ -29,7 +60,10 @@ export function SeatSelectionPage() {
   const [concert, setConcert] = useState<Concert | null>(null);
   const [zones, setZones] = useState<SeatMapZone[]>([]);
   const [activeZoneId, setActiveZoneId] = useState<string | null>(null);
-  const [selected, setSelected] = useState<SelectedSeatDetail[]>(restoredSelected ?? []);
+  const [selected, setSelected] = useState<SelectedSeatDetail[]>(
+    () => restoredSelected ?? loadHeldFromCheckout(id)
+  );
+  const heldSynced = useRef(Boolean(restoredSelected?.length || loadHeldFromCheckout(id).length));
   const [loading, setLoading] = useState(true);
   const [reserving, setReserving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +93,15 @@ export function SeatSelectionPage() {
   }, [load]);
 
   useEffect(() => {
+    if (heldSynced.current || !zones.length) return;
+    const held = heldSeatsFromZones(zones);
+    if (held.length) {
+      setSelected(held);
+    }
+    heldSynced.current = true;
+  }, [zones]);
+
+  useEffect(() => {
     if (!id) return;
     const poll = setInterval(async () => {
       try {
@@ -72,7 +115,7 @@ export function SeatSelectionPage() {
   }, [id]);
 
   const { zoneLayouts, canvasW, canvasH, stageWidth } = useMemo(() => {
-    if (isStage1VenueModel(concert?.venue?.model_glb_path) && isStage1Auditorium(zones)) {
+    if (isStage1VenueModel(concert?.venue?.model_glb_path) && isStage1Layout(zones)) {
       return layoutStage1SeatMapZones(zones);
     }
     const base = layoutSeatMapZones(zones);
@@ -116,7 +159,8 @@ export function SeatSelectionPage() {
   const seatClass = (status?: string, picked?: boolean, reservedByMe?: boolean) => {
     if (picked) return 'arena-seat arena-seat--selected';
     if (status === 'sold') return 'arena-seat arena-seat--sold';
-    if (status === 'reserved' && !reservedByMe) return 'arena-seat arena-seat--reserved';
+    if (status === 'reserved' && reservedByMe) return 'arena-seat arena-seat--held-mine';
+    if (status === 'reserved') return 'arena-seat arena-seat--reserved';
     return 'arena-seat arena-seat--available';
   };
 

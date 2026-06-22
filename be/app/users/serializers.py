@@ -10,6 +10,7 @@ class OrganizerProfileSerializer(serializers.ModelSerializer):
             'company_name',
             'business_license',
             'contact_phone',
+            'service_fee_percent',
             'status',
             'rejection_reason',
             'reviewed_at',
@@ -52,6 +53,12 @@ class UserRegisterSerializer(serializers.ModelSerializer):
     company_name = serializers.CharField(max_length=255, required=False, allow_blank=True, write_only=True)
     business_license = serializers.CharField(max_length=100, required=False, allow_blank=True, write_only=True)
     contact_phone = serializers.CharField(max_length=20, required=False, allow_blank=True, write_only=True)
+    service_fee_percent = serializers.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        required=False,
+        write_only=True,
+    )
 
     class Meta:
         model = User
@@ -64,6 +71,7 @@ class UserRegisterSerializer(serializers.ModelSerializer):
             'company_name',
             'business_license',
             'contact_phone',
+            'service_fee_percent',
         )
 
     def validate(self, data):
@@ -75,6 +83,11 @@ class UserRegisterSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({'company_name': 'Vui lòng nhập tên doanh nghiệp / tổ chức.'})
             if not data.get('business_license', '').strip():
                 raise serializers.ValidationError({'business_license': 'Vui lòng nhập mã số đăng ký kinh doanh.'})
+            fee = data.get('service_fee_percent')
+            if fee is None:
+                raise serializers.ValidationError({'service_fee_percent': 'Vui lòng nhập phí dịch vụ (%).'})
+            if fee < 0 or fee > 50:
+                raise serializers.ValidationError({'service_fee_percent': 'Phí dịch vụ phải từ 0% đến 50%.'})
 
         return data
 
@@ -83,6 +96,7 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         company_name = validated_data.pop('company_name', '').strip()
         business_license = validated_data.pop('business_license', '').strip()
         contact_phone = validated_data.pop('contact_phone', '').strip()
+        service_fee_percent = validated_data.pop('service_fee_percent', None)
         validated_data.pop('password_confirm')
         password = validated_data.pop('password')
         email = validated_data.get('email')
@@ -107,6 +121,7 @@ class UserRegisterSerializer(serializers.ModelSerializer):
                 company_name=company_name,
                 business_license=business_license,
                 contact_phone=contact_phone,
+                service_fee_percent=service_fee_percent if service_fee_percent is not None else 5,
                 status='pending',
             )
 
@@ -122,3 +137,28 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('full_name', 'avatar_url')
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True, min_length=6)
+    new_password_confirm = serializers.CharField(write_only=True, min_length=6)
+
+    def validate_current_password(self, value):
+        user = self.context['request'].user
+        if not user.check_password(value):
+            raise serializers.ValidationError('Mật khẩu hiện tại không đúng.')
+        return value
+
+    def validate(self, data):
+        if data['new_password'] != data['new_password_confirm']:
+            raise serializers.ValidationError({'new_password_confirm': 'Mật khẩu xác nhận không khớp.'})
+        if data['current_password'] == data['new_password']:
+            raise serializers.ValidationError({'new_password': 'Mật khẩu mới phải khác mật khẩu hiện tại.'})
+        return data
+
+    def save(self, **kwargs):
+        user = self.context['request'].user
+        user.set_password(self.validated_data['new_password'])
+        user.save(update_fields=['password'])
+        return user

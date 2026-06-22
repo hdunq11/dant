@@ -28,9 +28,11 @@ export interface Concert {
   end_time?: string;
   banner_url?: string;
   status?: string;
-  event_source?: string;
+  service_fee_percent?: number | null;
   venue?: Venue;
   concert_artists?: ConcertArtist[];
+  stage_template?: 'auditorium_336' | 'stage1_1000' | string;
+  desired_seat_count?: number;
 }
 
 export interface OrganizerProfile {
@@ -38,6 +40,7 @@ export interface OrganizerProfile {
   company_name?: string;
   business_license?: string;
   contact_phone?: string;
+  service_fee_percent?: number;
   status?: 'pending' | 'approved' | 'rejected';
   rejection_reason?: string;
   reviewed_at?: string;
@@ -53,6 +56,7 @@ export interface User {
   role?: string;
   is_staff?: boolean;
   organizer_profile?: OrganizerProfile | null;
+  created_at?: string;
 }
 
 export interface LoginResponse {
@@ -130,6 +134,8 @@ export interface Order {
   delivery_fee?: number;
   insurance_fee?: number;
   discount_amount?: number;
+  platform_commission?: number;
+  service_fee_percent_snapshot?: number;
   voucher_code?: string;
   delivery_method?: string;
   has_insurance?: boolean;

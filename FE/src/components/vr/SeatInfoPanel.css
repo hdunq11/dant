@@ -120,13 +120,13 @@
 }
 
 .vr-seat-info__status--reserved {
-  background: #ffedd5;
-  color: #c2410c;
+  background: var(--primary-light);
+  color: var(--primary-dark);
 }
 
 .vr-seat-info__status--mine {
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: var(--primary-light);
+  color: var(--primary-dark);
 }
 
 .vr-seat-info__status--sold {

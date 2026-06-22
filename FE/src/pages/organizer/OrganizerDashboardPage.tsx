@@ -22,6 +22,8 @@ export function OrganizerDashboardPage() {
     concerts_pending_review: 0,
     concerts_published: 0,
     orders_total: 0,
+    ticket_revenue: 0,
+    platform_fees: 0,
     revenue_total: 0,
     tickets_sold: 0,
     venues_owned: 0,
@@ -48,7 +50,9 @@ export function OrganizerDashboardPage() {
         <StatCard label="Đang bán" value={stats.concerts_published} tone="success" icon={<IconTicket size={18} />} />
         <StatCard label="Chờ duyệt" value={stats.concerts_pending_review} tone="warning" icon={<IconConcert size={18} />} />
         <StatCard label="Đơn thanh toán" value={stats.orders_total} tone="primary" icon={<IconOrder size={18} />} />
-        <StatCard label="Doanh thu" value={formatVnd(stats.revenue_total)} tone="success" icon={<IconChart size={18} />} />
+        <StatCard label="Doanh thu vé" value={formatVnd(stats.ticket_revenue)} tone="neutral" icon={<IconChart size={18} />} />
+        <StatCard label="Phí nền tảng" value={formatVnd(stats.platform_fees)} tone="warning" icon={<IconChart size={18} />} />
+        <StatCard label="Thực nhận" value={formatVnd(stats.revenue_total)} tone="success" icon={<IconChart size={18} />} />
         <StatCard label="Vé đã bán" value={stats.tickets_sold} tone="neutral" icon={<IconTicket size={18} />} />
       </div>
 
@@ -62,7 +66,7 @@ export function OrganizerDashboardPage() {
             <Link to="/organizer/concerts/create">Tạo concert</Link> — chọn venue, nghệ sĩ và thời gian diễn.
           </div>
           <div className="portal-step">
-            Đồng bộ ghế → Gửi duyệt → Admin approve → Publish để mở bán.
+            Gửi duyệt → Admin approve → Publish để mở bán.
           </div>
           <div className="portal-step">
             Theo dõi <Link to="/organizer/orders">Orders</Link> và <Link to="/organizer/statistics">Statistics</Link>.

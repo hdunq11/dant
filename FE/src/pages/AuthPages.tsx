@@ -86,6 +86,7 @@ export function RegisterPage() {
   const [companyName, setCompanyName] = useState('');
   const [businessLicense, setBusinessLicense] = useState('');
   const [contactPhone, setContactPhone] = useState('');
+  const [serviceFeePercent, setServiceFeePercent] = useState('5');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -94,6 +95,13 @@ export function RegisterPage() {
     if (password.length < 6) {
       setError('Mật khẩu tối thiểu 6 ký tự.');
       return;
+    }
+    if (isBusiness) {
+      const fee = parseFloat(serviceFeePercent);
+      if (Number.isNaN(fee) || fee < 0 || fee > 50) {
+        setError('Phí dịch vụ phải từ 0% đến 50%.');
+        return;
+      }
     }
     setLoading(true);
     setError(null);
@@ -107,6 +115,7 @@ export function RegisterPage() {
         company_name: isBusiness ? companyName : undefined,
         business_license: isBusiness ? businessLicense : undefined,
         contact_phone: isBusiness ? contactPhone : undefined,
+        service_fee_percent: isBusiness ? parseFloat(serviceFeePercent) : undefined,
       });
       navigate(isBusiness ? '/organizer/pending' : '/');
     } catch (err) {
@@ -194,6 +203,23 @@ export function RegisterPage() {
                   onChange={(e) => setContactPhone(e.target.value)}
                   placeholder="VD: 0901234567"
                 />
+              </div>
+              <div className="field">
+                <label htmlFor="service-fee">Phí dịch vụ nền tảng (%)</label>
+                <input
+                  id="service-fee"
+                  type="number"
+                  min={0}
+                  max={50}
+                  step={0.5}
+                  value={serviceFeePercent}
+                  onChange={(e) => setServiceFeePercent(e.target.value)}
+                  placeholder="VD: 5"
+                  required
+                />
+                <small className="field-hint">
+                  Tỷ lệ chiết khấu trên doanh thu vé concert — thỏa thuận khi hợp tác với nền tảng.
+                </small>
               </div>
             </>
           ) : (

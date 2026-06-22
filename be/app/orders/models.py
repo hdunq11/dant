@@ -40,6 +40,8 @@ class Order(models.Model):
     delivery_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     insurance_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    platform_commission = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    service_fee_percent_snapshot = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     voucher_code = models.CharField(max_length=50, blank=True, null=True)
     delivery_method = models.CharField(max_length=20, choices=DELIVERY_CHOICES, default='e_ticket')
     has_insurance = models.BooleanField(default=False)

@@ -7,6 +7,14 @@ from app.concerts.models import Concert
 class SeatZone(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     venue = models.ForeignKey(Venue, on_delete=models.CASCADE, related_name='seat_zones')
+    concert = models.ForeignKey(
+        Concert,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='seat_zones',
+        help_text='Null = zone dùng chung venue (BELOVED/76). Có giá trị = sơ đồ riêng concert.',
+    )
     name = models.CharField(max_length=100)  # VIP, A, B, C
     price = models.DecimalField(max_digits=10, decimal_places=2)
     color = models.CharField(max_length=20)  # hex color code
@@ -15,7 +23,18 @@ class SeatZone(models.Model):
 
     class Meta:
         db_table = 'seat_zones'
-        unique_together = ('venue', 'name')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['venue', 'name'],
+                condition=models.Q(concert__isnull=True),
+                name='seatzone_venue_name_unique',
+            ),
+            models.UniqueConstraint(
+                fields=['concert', 'name'],
+                condition=models.Q(concert__isnull=False),
+                name='seatzone_concert_name_unique',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.venue.name} - {self.name}"
@@ -24,6 +43,14 @@ class SeatZone(models.Model):
 class Seat(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     venue = models.ForeignKey(Venue, on_delete=models.CASCADE, related_name='seats')
+    concert = models.ForeignKey(
+        Concert,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='seats',
+        help_text='Null = ghế venue (legacy). Có giá trị = ghế riêng của concert.',
+    )
     zone = models.ForeignKey(SeatZone, on_delete=models.CASCADE, related_name='seats')
     row_label = models.CharField(max_length=5)  # A, B, C, ...
     seat_number = models.IntegerField()  # 1, 2, 3, ...
@@ -34,7 +61,18 @@ class Seat(models.Model):
 
     class Meta:
         db_table = 'seats'
-        unique_together = ('venue', 'row_label', 'seat_number')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['venue', 'row_label', 'seat_number'],
+                condition=models.Q(concert__isnull=True),
+                name='seat_venue_row_num_unique',
+            ),
+            models.UniqueConstraint(
+                fields=['concert', 'row_label', 'seat_number'],
+                condition=models.Q(concert__isnull=False),
+                name='seat_concert_row_num_unique',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.venue.name} - {self.row_label}{self.seat_number}"

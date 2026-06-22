@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { adminApi } from '../../api/adminApi';
 import { EmptyState } from '../../components/EmptyState';
+import { PageHeader } from '../../components/portal/PageHeader';
 import { getApiErrorMessage } from '../../context/AuthContext';
 import type { Venue } from '../../types';
 
@@ -54,17 +55,22 @@ export function AdminVenuesPage() {
 
   return (
     <div>
-      <div className="admin-topbar">
-        <h1 className="page-title">Địa điểm</h1>
-        <button type="button" className="btn btn-primary btn-sm" onClick={() => setForm({ ...empty })}>+ Thêm địa điểm</button>
-      </div>
+      <PageHeader
+        title="Địa điểm"
+        subtitle={`${items.length} venue trong hệ thống — chỉ giữ venue đang gắn concert hoặc do organizer tạo.`}
+        actions={
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => setForm({ ...empty })}>
+            + Thêm địa điểm
+          </button>
+        }
+      />
       {error ? <div className="alert alert-error">{error}</div> : null}
       <div className="admin-card admin-table-wrap">
         {loading ? <p>Đang tải...</p> : items.length ? (
           <table className="admin-table">
             <thead><tr><th>Tên</th><th>Thành phố</th><th>Sức chứa</th><th>Model VR</th><th></th></tr></thead>
             <tbody>
-              {items.slice(0, 50).map((v) => (
+              {items.map((v) => (
                 <tr key={v.id}>
                   <td>{v.name}</td>
                   <td>{v.city}</td>

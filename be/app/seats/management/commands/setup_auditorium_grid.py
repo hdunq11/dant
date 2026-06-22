@@ -33,14 +33,14 @@ class Command(BaseCommand):
         zone_rows = DEFAULT_ZONE_ROWS
 
         with transaction.atomic():
-            removed_cs = ConcertSeat.objects.filter(seat__venue=venue).count()
-            ConcertSeat.objects.filter(seat__venue=venue).delete()
-            removed_seats = Seat.objects.filter(venue=venue).delete()[0]
+            removed_cs = ConcertSeat.objects.filter(seat__venue=venue, seat__concert__isnull=True).count()
+            ConcertSeat.objects.filter(seat__venue=venue, seat__concert__isnull=True).delete()
+            removed_seats = Seat.objects.filter(venue=venue, concert__isnull=True).delete()[0]
             self.stdout.write(f'Removed {removed_seats} venue seats, {removed_cs} concert_seats')
 
             created = 0
             for zone_name, row_labels in zone_rows.items():
-                zone = SeatZone.objects.filter(venue=venue, name__iexact=zone_name).first()
+                zone = SeatZone.objects.filter(venue=venue, concert__isnull=True, name__iexact=zone_name).first()
                 if zone is None:
                     self.stdout.write(self.style.WARNING(f'  Skip missing zone: {zone_name}'))
                     continue
@@ -50,6 +50,7 @@ class Command(BaseCommand):
                         pos_x, pos_y = seat_pos_2d(row_idx, seat_num, aisle_after=DEFAULT_AISLE_AFTER)
                         Seat.objects.create(
                             venue=venue,
+                            concert=None,
                             zone=zone,
                             row_label=row_label,
                             seat_number=seat_num,
@@ -71,7 +72,7 @@ class Command(BaseCommand):
                 ConcertSeat.objects.bulk_create(
                     [
                         ConcertSeat(concert=concert, seat=seat, status='available')
-                        for seat in Seat.objects.filter(venue=venue).order_by('row_label', 'seat_number')
+                        for seat in Seat.objects.filter(venue=venue, concert__isnull=True).order_by('row_label', 'seat_number')
                     ]
                 )
                 total = ConcertSeat.objects.filter(concert=concert, seat__venue=venue).count()

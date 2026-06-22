@@ -4,6 +4,7 @@ import { memo, useState } from 'react';
 import { DoubleSide } from 'three';
 import type { Seat3D } from '../../utils/seatMap3D';
 import { seatLabel, seatTagPose } from '../../utils/seatMap3D';
+import { SEAT_STATUS_COLORS } from '../../utils/zoneColors';
 
 interface SeatInstancesProps {
   seats: Seat3D[];
@@ -16,8 +17,8 @@ interface SeatInstancesProps {
 function accentColor(seat: Seat3D, selected: boolean, previewing: boolean, hovered: boolean) {
   if (selected) return '#16a34a';
   if (previewing) return '#d97706';
-  if (seat.status === 'sold') return '#94a3b8';
-  if (seat.status === 'reserved' && !seat.reservedByMe) return '#ea580c';
+  if (seat.status === 'sold') return SEAT_STATUS_COLORS.sold;
+  if (seat.status === 'reserved') return SEAT_STATUS_COLORS.reserved;
   if (hovered) return '#6366f1';
   return seat.color;
 }

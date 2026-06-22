@@ -17,7 +17,7 @@ from .serializers import (
     VoucherValidateSerializer,
     VoucherSerializer,
 )
-from .pricing import calculate_order_pricing, get_voucher_discount
+from .pricing import calculate_order_pricing, get_voucher_discount, calculate_platform_commission
 from app.seats.reservation import effective_seat_status, is_active_reservation, release_expired_reservations
 from app.concerts.models import Concert
 from app.seats.models import ConcertSeat, Seat
@@ -235,6 +235,11 @@ class OrderViewSet(viewsets.ModelViewSet):
             has_insurance=data.get('has_insurance', False),
             voucher_code=voucher_code,
         )
+        platform_commission, fee_snapshot = calculate_platform_commission(
+            concert,
+            pricing['seat_subtotal'],
+            pricing['discount_amount'],
+        )
 
         order = Order.objects.create(
             user=request.user,
@@ -244,6 +249,8 @@ class OrderViewSet(viewsets.ModelViewSet):
             delivery_fee=pricing['delivery_fee'],
             insurance_fee=pricing['insurance_fee'],
             discount_amount=pricing['discount_amount'],
+            platform_commission=platform_commission,
+            service_fee_percent_snapshot=fee_snapshot,
             voucher_code=pricing['voucher_code'],
             delivery_method=data.get('delivery_method', 'e_ticket'),
             has_insurance=data.get('has_insurance', False),

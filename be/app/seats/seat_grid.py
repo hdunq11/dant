@@ -76,3 +76,38 @@ def row_label_to_index(row_label: str) -> int | None:
     if len(row) == 1 and 'A' <= row <= 'L':
         return ord(row) - ord('A')
     return None
+
+
+def zone_for_row_label(row_label: str, zone_rows: dict[str, list[str]]) -> str:
+    row = (row_label or '').strip().upper()
+    for zone_name, labels in zone_rows.items():
+        if row in [lb.strip().upper() for lb in labels]:
+            return zone_name
+    return list(zone_rows.keys())[-1]
+
+
+def iter_auditorium_seats_by_row(
+    zone_rows: dict[str, list[str]],
+    *,
+    limit: int | None = None,
+):
+    """Từ sân khấu xuống: mỗi hàng đủ 28 ghế (14 trái + lối đi + 14 phải), hàng cuối có thể thiếu."""
+    created = 0
+    for row_idx in range(DEFAULT_ROW_COUNT):
+        if limit is not None and created >= limit:
+            break
+        row_label = chr(ord('A') + row_idx)
+        zone_name = zone_for_row_label(row_label, zone_rows)
+        seats_in_row = DEFAULT_SEATS_PER_ROW
+        if limit is not None:
+            remaining = limit - created
+            if remaining <= 0:
+                break
+            seats_in_row = min(DEFAULT_SEATS_PER_ROW, remaining)
+        for seat_num in range(1, seats_in_row + 1):
+            yield zone_name, row_label, row_idx, seat_num
+            created += 1
+
+
+def zones_used_for_auditorium(zone_rows: dict[str, list[str]], limit: int | None) -> set[str]:
+    return {item[0] for item in iter_auditorium_seats_by_row(zone_rows, limit=limit)}

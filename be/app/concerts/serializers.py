@@ -35,7 +35,8 @@ class ConcertSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'title', 'description', 'start_time', 'end_time',
             'venue', 'venue_id', 'banner_url', 'concert_artists', 'artists',
-            'status', 'event_source', 'organizer',
+            'status', 'event_source', 'organizer', 'service_fee_percent',
+            'stage_template', 'desired_seat_count',
             'created_at', 'updated_at',
         )
         read_only_fields = ('id', 'organizer', 'created_at', 'updated_at')

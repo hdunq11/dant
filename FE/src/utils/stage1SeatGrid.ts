@@ -107,40 +107,36 @@ export function stage1SeatPos2D(rowIndex: number, seatNumber: number, step = 10)
 
 
 
-export function isStage1Auditorium(zones: { seats?: { row?: string; number?: number }[] }[]): boolean {
-
+export function isStage1Layout(zones: { seats?: { row?: string; number?: number }[] }[]): boolean {
   const rows = new Set<string>();
-
   let total = 0;
-
-  let maxSeat = 0;
-
   for (const zone of zones) {
-
     for (const seat of zone.seats ?? []) {
-
       total += 1;
-
       const row = seat.row?.trim().toUpperCase();
-
-      if (row) rows.add(row);
-
-      if (seat.number != null) maxSeat = Math.max(maxSeat, seat.number);
-
+      if (!row || stage1RowLabelToIndex(row) === null) return false;
+      const num = seat.number ?? 0;
+      if (num < 1 || num > STAGE1_SEATS_PER_ROW) return false;
+      rows.add(row);
     }
-
   }
-
-  return (
-
-    total === STAGE1_TOTAL_SEATS &&
-
-    rows.size === STAGE1_ROW_COUNT &&
-
-    maxSeat === STAGE1_SEATS_PER_ROW
-
-  );
-
+  if (total === 0 || total > STAGE1_TOTAL_SEATS) return false;
+  const indices = [...rows].map((r) => stage1RowLabelToIndex(r)!);
+  const maxIdx = Math.max(...indices);
+  for (let i = 0; i <= maxIdx; i += 1) {
+    if (!rows.has(String.fromCharCode(65 + i))) return false;
+  }
+  return true;
 }
 
+export function isStage1Auditorium(zones: { seats?: { row?: string; number?: number }[] }[]): boolean {
+  return isStage1Layout(zones) && countStage1Seats(zones) === STAGE1_TOTAL_SEATS;
+}
 
+function countStage1Seats(zones: { seats?: { row?: string; number?: number }[] }[]): number {
+  let total = 0;
+  for (const zone of zones) {
+    total += zone.seats?.length ?? 0;
+  }
+  return total;
+}

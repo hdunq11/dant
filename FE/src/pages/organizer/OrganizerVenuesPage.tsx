@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { organizerApi } from '../../api/organizerApi';
 import { VenueModelSelect } from '../../components/VenueModelSelect';
 import { EmptyState } from '../../components/EmptyState';
+import { PageHeader } from '../../components/portal/PageHeader';
 import { getApiErrorMessage } from '../../context/AuthContext';
 import { venueModelLabel } from '../../constants/venueModels';
 import type { Venue } from '../../types';
@@ -60,17 +61,15 @@ export function OrganizerVenuesPage() {
 
   return (
     <div>
-      <div className="admin-topbar">
-        <div>
-          <h1 className="page-title">Địa điểm của tôi</h1>
-          <p className="page-subtitle">
-            Mỗi venue gắn một model VR. Concert chọn venue nào sẽ dùng sân khấu của venue đó.
-          </p>
-        </div>
-        <button type="button" className="btn btn-primary btn-sm" onClick={() => setForm({ ...empty })}>
-          + Thêm địa điểm
-        </button>
-      </div>
+      <PageHeader
+        title="Địa điểm của tôi"
+        subtitle="Mỗi venue gắn một model VR. Concert chọn venue nào sẽ dùng sân khấu của venue đó."
+        actions={
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => setForm({ ...empty })}>
+            + Thêm địa điểm
+          </button>
+        }
+      />
       {error ? <div className="alert alert-error">{error}</div> : null}
       <div className="admin-card admin-table-wrap">
         {loading ? (

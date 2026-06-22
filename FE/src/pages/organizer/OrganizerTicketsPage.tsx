@@ -98,7 +98,7 @@ export function OrganizerTicketsPage() {
           compact
           icon="ticket"
           title="Chưa có dữ liệu vé"
-          description="Tạo concert và đồng bộ ghế để theo dõi tình trạng vé tại đây."
+          description="Tạo concert để theo dõi tình trạng vé tại đây."
           action={{ label: 'Create Concert', to: '/organizer/concerts/create' }}
         />
       )}

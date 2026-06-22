@@ -1,4 +1,5 @@
-from django.db.models import Count, Sum, Q
+from django.db import transaction
+from django.db.models import Count, Sum, F, Q
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -7,7 +8,9 @@ from rest_framework.views import APIView
 
 from app.concerts.models import Concert
 from app.concerts.serializers import ConcertSerializer
+from app.seats.stage_sync import should_sync_stage_on_approval, sync_organizer_concert_stage
 from app.orders.models import Order, OrderItem, Voucher
+from app.orders.pricing import get_concert_service_fee_percent, resolve_order_platform_commission, ticket_net_amount
 from app.users.models import User, OrganizerProfile
 from app.venues.models import Venue
 
@@ -20,6 +23,13 @@ class AdminDashboardView(APIView):
 
     def get(self, request):
         paid = Order.objects.filter(status='paid')
+        ticket_gmv = float(paid.aggregate(t=Sum(F('seat_subtotal') - F('discount_amount')))['t'] or 0)
+        commission_total = float(paid.aggregate(t=Sum('platform_commission'))['t'] or 0)
+        if commission_total <= 0:
+            commission_total = sum(
+                float(resolve_order_platform_commission(o))
+                for o in paid.select_related('concert', 'concert__organizer__organizer_profile')
+            )
         return Response({
             'users_total': User.objects.count(),
             'organizers_pending': OrganizerProfile.objects.filter(status='pending').count(),
@@ -28,7 +38,9 @@ class AdminDashboardView(APIView):
             'venues_total': Venue.objects.count(),
             'orders_total': Order.objects.count(),
             'orders_paid': paid.count(),
-            'revenue_total': float(paid.aggregate(t=Sum('total_price'))['t'] or 0),
+            'ticket_gmv': ticket_gmv,
+            'commission_total': commission_total,
+            'revenue_total': commission_total,
             'vouchers_active': Voucher.objects.filter(is_active=True).count(),
         })
 
@@ -50,22 +62,40 @@ class AdminReportsView(APIView):
             for row in OrganizerProfile.objects.values('status').annotate(c=Count('id'))
         }
         top_concerts = []
-        for c in Concert.objects.all().order_by('-start_time')[:15]:
-            paid = Order.objects.filter(concert=c, status='paid')
+        for c in Concert.objects.select_related('organizer__organizer_profile').all().order_by('-start_time')[:15]:
+            paid = Order.objects.filter(concert=c, status='paid').select_related(
+                'concert', 'concert__organizer__organizer_profile'
+            )
+            ticket_rev = 0.0
+            commission = 0.0
+            for order in paid:
+                ticket_rev += float(ticket_net_amount(order.seat_subtotal, order.discount_amount))
+                commission += float(resolve_order_platform_commission(order))
+            fee_percent = float(get_concert_service_fee_percent(c))
             top_concerts.append({
                 'concert_id': str(c.id),
                 'title': c.title,
                 'status': c.status,
                 'event_source': c.event_source,
+                'service_fee_percent': fee_percent,
                 'orders': paid.count(),
-                'revenue': float(paid.aggregate(t=Sum('total_price'))['t'] or 0),
+                'ticket_revenue': ticket_rev,
+                'commission': commission,
+                'revenue': ticket_rev,
                 'tickets_sold': OrderItem.objects.filter(order__concert=c, order__status='paid').count(),
             })
-        top_concerts.sort(key=lambda x: x['revenue'], reverse=True)
+        top_concerts.sort(key=lambda x: x['commission'], reverse=True)
+        paid_all = Order.objects.filter(status='paid').select_related(
+            'concert', 'concert__organizer__organizer_profile'
+        )
+        commission_total = float(paid_all.aggregate(t=Sum('platform_commission'))['t'] or 0)
+        if commission_total <= 0:
+            commission_total = sum(float(resolve_order_platform_commission(o)) for o in paid_all)
         return Response({
             'orders_by_status': orders_by_status,
             'concerts_by_status': concerts_by_status,
             'organizers_by_status': organizers_by_status,
+            'commission_total': commission_total,
             'top_concerts': top_concerts[:10],
             'users_by_role': {
                 row['role']: row['c']
@@ -154,9 +184,24 @@ class AdminConcertReviewViewSet(viewsets.ViewSet):
             return Response({'error': 'Concert không tồn tại.'}, status=404)
         if concert.status != 'pending_review':
             return Response({'error': 'Concert không ở trạng thái chờ duyệt.'}, status=400)
-        concert.status = 'approved'
-        concert.save(update_fields=['status', 'updated_at'])
-        return Response(ConcertSerializer(concert).data)
+
+        stage_sync = None
+        try:
+            with transaction.atomic():
+                if should_sync_stage_on_approval(concert):
+                    stage_sync = sync_organizer_concert_stage(concert)
+                concert.status = 'approved'
+                concert.save(update_fields=['status', 'updated_at'])
+        except (ValueError, FileNotFoundError, OSError) as exc:
+            return Response(
+                {'error': f'Không sync được sơ đồ ghế: {exc}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        payload = ConcertSerializer(concert).data
+        if stage_sync and not stage_sync.get('skipped'):
+            payload['stage_sync'] = stage_sync
+        return Response(payload)
 
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):

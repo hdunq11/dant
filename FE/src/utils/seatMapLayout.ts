@@ -1,7 +1,7 @@
 import type { SeatMapSeat, SeatMapZone } from '../types';
 import { resolveZoneColor } from './zoneColors';
 import { isGltfSeatCoords } from './seatMap3D';
-import { globalSeatNumber, seatPos2D, VENUE_ROW_COUNT, VENUE_SEATS_PER_ROW } from './seatGrid';
+import { globalSeatNumber, rowLabelToIndex, seatPos2D, VENUE_ROW_COUNT, VENUE_SEATS_PER_ROW } from './seatGrid';
 
 const SEAT_STEP = 22;
 const PAD = 10;
@@ -47,17 +47,26 @@ function seatCoord(seat: SeatMapSeat, rowIdx: number) {
   return seatPos2D(rowIdx, num);
 }
 
-function isFullAuditorium(zones: SeatMapZone[]): boolean {
+function isAuditoriumLayout(zones: SeatMapZone[]): boolean {
   const rows = new Set<string>();
   let total = 0;
   for (const zone of zones) {
     for (const seat of zone.seats ?? []) {
       total += 1;
       const row = seat.row?.trim().toUpperCase();
-      if (row) rows.add(row);
+      if (!row || rowLabelToIndex(row) === null) return false;
+      const num = seat.number ?? 0;
+      if (num < 1 || num > VENUE_SEATS_PER_ROW) return false;
+      rows.add(row);
     }
   }
-  return total === VENUE_ROW_COUNT * VENUE_SEATS_PER_ROW && rows.size === VENUE_ROW_COUNT;
+  if (total === 0 || total > VENUE_ROW_COUNT * VENUE_SEATS_PER_ROW) return false;
+  const indices = [...rows].map((r) => rowLabelToIndex(r)!);
+  const maxIdx = Math.max(...indices);
+  for (let i = 0; i <= maxIdx; i += 1) {
+    if (!rows.has(String.fromCharCode(65 + i))) return false;
+  }
+  return true;
 }
 
 /** Một khán đài 12×28 — ghép mọi zone vào đúng vị trí hàng A–L (giống bảng Excel). */
@@ -210,7 +219,7 @@ export function layoutSeatMapZones(zones: SeatMapZone[]): {
   canvasW: number;
   canvasH: number;
 } {
-  if (isFullAuditorium(zones)) {
+  if (isAuditoriumLayout(zones)) {
     return layoutAuditorium(zones);
   }
 

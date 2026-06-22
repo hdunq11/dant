@@ -5,7 +5,8 @@ from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAdminUser
 from django.db.models import Q
 from .models import Concert, ConcertArtist
 from .serializers import ConcertSerializer
-from app.seats.models import ConcertSeat, Seat
+from app.seats.stage_templates import concert_uses_own_seats
+from app.seats.models import ConcertSeat, Seat, SeatZone
 from app.seats.reservation import release_expired_reservations, serialize_map_seat
 from app.orders.seat_lifecycle import cancel_stale_pending_orders, reconcile_concert_seats
 
@@ -73,18 +74,24 @@ class ConcertViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     def _venue_concert_seats(self, concert):
-        return ConcertSeat.objects.filter(concert=concert, seat__venue=concert.venue)
+        qs = ConcertSeat.objects.filter(concert=concert, seat__venue=concert.venue)
+        if concert_uses_own_seats(concert):
+            return qs.filter(seat__concert=concert)
+        return qs.filter(seat__concert__isnull=True)
 
     def _ensure_concert_seats(self, concert):
-        """Tự tạo concert_seats từ ghế venue; bỏ ghế lạ venue khác."""
+        """Tự tạo concert_seats; concert organizer dùng ghế riêng theo concert_id."""
         ConcertSeat.objects.filter(concert=concert).exclude(seat__venue=concert.venue).delete()
         if self._venue_concert_seats(concert).exists():
             return
-        venue_seats = Seat.objects.filter(venue=concert.venue)
+        if concert_uses_own_seats(concert):
+            seats = Seat.objects.filter(concert=concert, venue=concert.venue)
+        else:
+            seats = Seat.objects.filter(venue=concert.venue, concert__isnull=True)
         ConcertSeat.objects.bulk_create(
             [
                 ConcertSeat(concert=concert, seat=seat, status='available')
-                for seat in venue_seats
+                for seat in seats
             ],
             ignore_conflicts=True,
         )
@@ -96,7 +103,13 @@ class ConcertViewSet(viewsets.ModelViewSet):
         release_expired_reservations(concert)
         cancel_stale_pending_orders(concert)
         reconcile_concert_seats(concert)
-        zones = concert.venue.seat_zones.all()
+
+        if concert_uses_own_seats(concert):
+            zones = SeatZone.objects.filter(concert=concert).order_by('-price', 'name')
+        else:
+            zones = SeatZone.objects.filter(venue=concert.venue, concert__isnull=True).order_by(
+                '-price', 'name'
+            )
 
         seatmap = []
         for zone in zones:
@@ -119,7 +132,7 @@ class ConcertViewSet(viewsets.ModelViewSet):
         """Tạo concert_seats từ toàn bộ ghế của venue (admin)."""
         concert = self.get_object()
         removed = ConcertSeat.objects.filter(concert=concert).exclude(seat__venue=concert.venue).delete()[0]
-        venue_seats = Seat.objects.filter(venue=concert.venue)
+        venue_seats = Seat.objects.filter(venue=concert.venue, concert__isnull=True)
         created = 0
         for seat in venue_seats:
             _, was_created = ConcertSeat.objects.get_or_create(

@@ -24,6 +24,8 @@ export function AdminDashboardPage() {
     venues_total: 0,
     orders_total: 0,
     orders_paid: 0,
+    ticket_gmv: 0,
+    commission_total: 0,
     revenue_total: 0,
     vouchers_active: 0,
   });
@@ -66,7 +68,8 @@ export function AdminDashboardPage() {
         <StatCard label="Concert đang bán" value={stats.concerts_published} tone="success" icon={<IconConcert size={18} />} />
         <StatCard label="Venues" value={stats.venues_total} tone="neutral" icon={<IconVenue size={18} />} />
         <StatCard label="Đơn đã thanh toán" value={stats.orders_paid} tone="primary" icon={<IconOrder size={18} />} />
-        <StatCard label="Doanh thu" value={formatVnd(stats.revenue_total)} tone="success" icon={<IconChart size={18} />} />
+        <StatCard label="GMV vé" value={formatVnd(stats.ticket_gmv)} tone="neutral" icon={<IconChart size={18} />} />
+        <StatCard label="Chiết khấu (admin)" value={formatVnd(stats.commission_total)} tone="success" icon={<IconChart size={18} />} />
         <StatCard label="Voucher active" value={stats.vouchers_active} tone="warning" icon={<IconVoucher size={18} />} />
       </div>
 

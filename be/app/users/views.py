@@ -5,7 +5,13 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import User
-from .serializers import UserSerializer, UserRegisterSerializer, UserLoginSerializer, UserProfileUpdateSerializer
+from .serializers import (
+    UserSerializer,
+    UserRegisterSerializer,
+    UserLoginSerializer,
+    UserProfileUpdateSerializer,
+    ChangePasswordSerializer,
+)
 from app.behaviors.models import Favorite
 from app.orders.models import Order
 
@@ -107,6 +113,17 @@ class UserMeView(generics.RetrieveUpdateAPIView):
         if self.request.method == 'PUT' or self.request.method == 'PATCH':
             return UserProfileUpdateSerializer
         return UserSerializer
+
+
+class UserChangePasswordView(generics.GenericAPIView):
+    serializer_class = ChangePasswordSerializer
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({'message': 'Đã đổi mật khẩu.'})
 
 
 class UserFavoritesView(generics.ListCreateAPIView):

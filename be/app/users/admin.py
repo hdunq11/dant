@@ -13,7 +13,7 @@ class UserAdmin(admin.ModelAdmin):
 
 @admin.register(OrganizerProfile)
 class OrganizerProfileAdmin(admin.ModelAdmin):
-    list_display = ('company_name', 'user', 'status', 'business_license', 'created_at', 'reviewed_at')
+    list_display = ('company_name', 'user', 'service_fee_percent', 'status', 'business_license', 'created_at', 'reviewed_at')
     list_filter = ('status', 'created_at')
     search_fields = ('company_name', 'business_license', 'user__email', 'user__full_name')
     readonly_fields = ('id', 'created_at', 'updated_at', 'reviewed_at')

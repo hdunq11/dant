@@ -29,6 +29,27 @@ export interface ConcertWrite {
   event_source?: string;
 }
 
+export interface OrganizerConcertWrite {
+  title: string;
+  description?: string;
+  start_time: string;
+  end_time: string;
+  venue_id: string;
+  banner_url?: string;
+  artist_names?: string[];
+  service_fee_percent?: number | null;
+  stage_template?: 'auditorium_336' | 'stage1_1000';
+  desired_seat_count?: number;
+}
+
+export interface StageTemplateOption {
+  id: 'auditorium_336' | 'stage1_1000';
+  label: string;
+  description: string;
+  capacity: number;
+  model_glb_path: string;
+}
+
 export interface AdminDashboard {
   users_total: number;
   organizers_pending: number;
@@ -37,6 +58,8 @@ export interface AdminDashboard {
   venues_total: number;
   orders_total: number;
   orders_paid: number;
+  ticket_gmv: number;
+  commission_total: number;
   revenue_total: number;
   vouchers_active: number;
 }
@@ -46,12 +69,16 @@ export interface AdminReports {
   concerts_by_status: Record<string, number>;
   organizers_by_status: Record<string, number>;
   users_by_role: Record<string, number>;
+  commission_total: number;
   top_concerts: Array<{
     concert_id: string;
     title: string;
     status: string;
     event_source: string;
+    service_fee_percent?: number | null;
     orders: number;
+    ticket_revenue: number;
+    commission: number;
     revenue: number;
     tickets_sold: number;
   }>;
@@ -97,7 +124,6 @@ export const adminApi = {
   updateConcert: (id: string, body: Partial<ConcertWrite>) =>
     api.patch<Concert>(`api/concerts/concerts/${id}/`, body),
   deleteConcert: (id: string) => api.delete(`api/concerts/concerts/${id}/`),
-  syncConcertSeats: (id: string) => api.post(`api/concerts/concerts/${id}/sync_seats/`),
 
   getOrders: () => api.get<Order[]>('api/orders/orders/'),
 

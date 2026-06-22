@@ -36,6 +36,24 @@ class Concert(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='published')
     event_source = models.CharField(max_length=20, choices=EVENT_SOURCE_CHOICES, default='internal')
     banner_url = models.TextField(null=True, blank=True)
+    service_fee_percent = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Phí dịch vụ (%) riêng cho concert — ưu tiên hơn mức mặc định của organizer.',
+    )
+    STAGE_TEMPLATE_CHOICES = [
+        ('auditorium_336', 'Hội trường 336 ghế'),
+        ('stage1_1000', 'Sân khấu 1000 ghế'),
+    ]
+    stage_template = models.CharField(
+        max_length=32,
+        choices=STAGE_TEMPLATE_CHOICES,
+        null=True,
+        blank=True,
+    )
+    desired_seat_count = models.PositiveIntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

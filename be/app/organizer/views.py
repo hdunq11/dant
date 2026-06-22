@@ -1,4 +1,4 @@
-from django.db.models import Count, Sum, Q
+from django.db.models import Count, Sum, F, Q
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -8,6 +8,7 @@ from app.artists.models import Artist
 from app.artists.serializers import ArtistSerializer
 from app.concerts.models import Concert
 from app.orders.models import Order, OrderItem
+from app.orders.pricing import resolve_order_platform_commission, ticket_net_amount
 from app.seats.models import ConcertSeat, Seat, SeatZone
 from app.seats.reservation import release_expired_reservations, serialize_map_seat
 from app.orders.seat_lifecycle import cancel_stale_pending_orders, reconcile_concert_seats
@@ -20,6 +21,8 @@ from app.seats.seat_grid import (
 from app.seats.stage_templates import (
     STAGE_TEMPLATES,
     apply_stage_template,
+    concert_uses_own_seats,
+    serialize_concert_preview_seatmap,
     serialize_venue_preview_seatmap,
 )
 from app.venues.models import Venue
@@ -43,14 +46,24 @@ class OrganizerDashboardView(APIView):
     def get(self, request):
         user = request.user
         concerts = _user_concerts(user)
-        paid_orders = Order.objects.filter(concert__organizer=user, status='paid')
+        paid_orders = Order.objects.filter(concert__organizer=user, status='paid').select_related(
+            'concert', 'concert__organizer__organizer_profile'
+        )
+        ticket_revenue = 0.0
+        platform_fees = 0.0
+        for order in paid_orders:
+            net = float(ticket_net_amount(order.seat_subtotal, order.discount_amount))
+            ticket_revenue += net
+            platform_fees += float(resolve_order_platform_commission(order))
         return Response({
             'concerts_total': concerts.count(),
             'concerts_draft': concerts.filter(status='draft').count(),
             'concerts_pending_review': concerts.filter(status='pending_review').count(),
             'concerts_published': concerts.filter(status='published').count(),
             'orders_total': paid_orders.count(),
-            'revenue_total': float(paid_orders.aggregate(total=Sum('total_price'))['total'] or 0),
+            'ticket_revenue': ticket_revenue,
+            'platform_fees': platform_fees,
+            'revenue_total': ticket_revenue - platform_fees,
             'tickets_sold': OrderItem.objects.filter(
                 order__concert__organizer=user,
                 order__status='paid',
@@ -68,13 +81,22 @@ class OrganizerStatisticsView(APIView):
         by_status = {row['status']: row['c'] for row in concerts.values('status').annotate(c=Count('id'))}
         revenue_by_concert = []
         for c in concerts:
-            paid = Order.objects.filter(concert=c, status='paid')
+            paid = Order.objects.filter(concert=c, status='paid').select_related(
+                'concert', 'concert__organizer__organizer_profile'
+            )
+            ticket_rev = 0.0
+            fees = 0.0
+            for order in paid:
+                ticket_rev += float(ticket_net_amount(order.seat_subtotal, order.discount_amount))
+                fees += float(resolve_order_platform_commission(order))
             revenue_by_concert.append({
                 'concert_id': str(c.id),
                 'title': c.title,
                 'status': c.status,
                 'orders': paid.count(),
-                'revenue': float(paid.aggregate(total=Sum('total_price'))['total'] or 0),
+                'ticket_revenue': ticket_rev,
+                'platform_fees': fees,
+                'revenue': ticket_rev - fees,
                 'tickets_sold': OrderItem.objects.filter(order__concert=c, order__status='paid').count(),
             })
         revenue_by_concert.sort(key=lambda x: x['revenue'], reverse=True)
@@ -94,12 +116,22 @@ class OrganizerConcertViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         concert = self.get_object()
-        if concert.status not in ('draft', 'rejected'):
+        if concert.status not in ('draft', 'rejected', 'pending_review'):
             return Response(
-                {'error': 'Chỉ xóa được concert nháp hoặc bị từ chối.'},
+                {'error': 'Chỉ xóa được concert nháp, chờ duyệt hoặc bị từ chối.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         return super().destroy(request, *args, **kwargs)
+
+    @action(detail=False, methods=['post'])
+    def delete_unapproved(self, request):
+        """Xóa toàn bộ concert chưa được admin duyệt (nháp / chờ duyệt / từ chối)."""
+        qs = self.get_queryset().filter(status__in=('draft', 'pending_review', 'rejected'))
+        count = qs.count()
+        if not count:
+            return Response({'message': 'Không có concert nào để xóa.', 'deleted': 0})
+        qs.delete()
+        return Response({'message': f'Đã xóa {count} concert.', 'deleted': count})
 
     @action(detail=True, methods=['post'])
     def submit(self, request, pk=None):
@@ -142,16 +174,27 @@ class OrganizerConcertViewSet(viewsets.ModelViewSet):
     def seatmap(self, request, pk=None):
         concert = self.get_object()
         if not ConcertSeat.objects.filter(concert=concert).exists():
-            venue_seats = Seat.objects.filter(venue=concert.venue)
+            if concert_uses_own_seats(concert):
+                seats = Seat.objects.filter(concert=concert, venue=concert.venue)
+            else:
+                seats = Seat.objects.filter(venue=concert.venue, concert__isnull=True)
             ConcertSeat.objects.bulk_create(
-                [ConcertSeat(concert=concert, seat=seat, status='available') for seat in venue_seats],
+                [ConcertSeat(concert=concert, seat=seat, status='available') for seat in seats],
                 ignore_conflicts=True,
             )
         release_expired_reservations(concert)
         cancel_stale_pending_orders(concert)
         reconcile_concert_seats(concert)
+
+        if concert_uses_own_seats(concert):
+            zones = SeatZone.objects.filter(concert=concert).order_by('-price', 'name')
+        else:
+            zones = SeatZone.objects.filter(venue=concert.venue, concert__isnull=True).order_by(
+                '-price', 'name'
+            )
+
         seatmap = []
-        for zone in concert.venue.seat_zones.all():
+        for zone in zones:
             seats = ConcertSeat.objects.filter(
                 concert=concert,
                 seat__zone=zone,

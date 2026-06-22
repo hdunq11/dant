@@ -6,7 +6,6 @@ import {
   IconDashboard,
   IconLogout,
   IconOrder,
-  IconPlus,
   IconSeat,
   IconTicket,
   IconVenue,
@@ -17,7 +16,6 @@ import './organizer.css';
 const NAV = [
   { to: '/organizer', end: true, label: 'Dashboard', icon: IconDashboard },
   { to: '/organizer/concerts', label: 'My Concerts', icon: IconConcert },
-  { to: '/organizer/concerts/create', label: 'Create Concert', icon: IconPlus },
   { to: '/organizer/seatmap', label: 'Seat Map', icon: IconSeat },
   { to: '/organizer/stage', label: 'Sân khấu', icon: IconVenue },
   { to: '/organizer/tickets', label: 'Tickets', icon: IconTicket },

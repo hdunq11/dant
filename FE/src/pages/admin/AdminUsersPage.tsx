@@ -116,6 +116,7 @@ export function AdminUsersPage() {
                 <th>Tên</th>
                 <th>Role</th>
                 <th>Doanh nghiệp</th>
+                <th>Phí DV (%)</th>
                 <th>Trạng thái DN</th>
                 <th>Active</th>
                 <th>Ngày tạo</th>
@@ -131,6 +132,7 @@ export function AdminUsersPage() {
                     <td>{u.full_name}</td>
                     <td>{u.role}</td>
                     <td>{profile?.company_name ?? '—'}</td>
+                    <td>{profile?.service_fee_percent != null ? `${profile.service_fee_percent}%` : '—'}</td>
                     <td>
                       {profile?.status ? (
                         <span className={organizerStatusClass(profile.status)}>
